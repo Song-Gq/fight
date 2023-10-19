@@ -1,8 +1,8 @@
 set -x
 
-sub_dir="fight-sur/noFight"
+sub_dir="fight-sur/fight"
 dir="/home/tj203/sgq/datasets/$sub_dir/*"
-out_dir="/home/tj203/sgq/datasets/output/alphapose_26/$sub_dir"
+out_dir="/home/tj203/sgq/datasets/output/alphapose_26_thre/$sub_dir"
 for f in $dir
 do 
     if [ -f $f ]

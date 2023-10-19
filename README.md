@@ -31,3 +31,11 @@
 ## 数据可视化
 
 `pip install plotly pandas==1.3.5`
+
+## 阈值调整
+
+针对fight-sur数据集较弱的视频质量，对AlphaPose中YOLO和跟踪的阈值进行调整：
+
+`detector/yolox_cfg.py -> cfg.CONF_THRES = 0.05 (default = 0.1)`
+`detector/yolox_cfg.py -> cfg.NMS_THRES = 0.1 (default = 0.6)`
+`trackers/tracker_cfg.py -> cfg.conf_thres = 0.05 (default = 0.5)`
