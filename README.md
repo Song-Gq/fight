@@ -27,6 +27,13 @@
 - 运行时报numpy的deprecated错误，报opencv的numpy错误，安装旧版本：
 
   `pip install numpy==1.21.5 scipy==1.7.3 opencv-python==4.7.0.68`
+  
+  如果仍报numpy的float方法错误，则将numpy降级为<1.20
+
+## AlphaPose识别
+
+- 如果输出视频时卡住，可以考虑是否CPU内存不足，将运行时参数qsize调低。
+- 如果非内存不足问题，可以将detbatch参数改为1.
 
 ## 数据可视化
 

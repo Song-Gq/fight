@@ -8,7 +8,7 @@ from sklearn.metrics import accuracy_score
 
 
 if __name__ == '__main__':
-    src_name = 'fi001.json'
+    src_name = 'fight-sur/fi001.json'
     df = pd.read_json('fightDetect/data/' + src_name)
 
     # split the column of <list> 'keypoints' into multiple cols
