@@ -2,26 +2,10 @@ import numpy as np
 import plotly.express as px
 import plotly
 import pandas as pd
-import os
-import itertools
-from data_process import *
+import data_process as dp
 
 
 def draw_fig(key_df, json_name):
-    # df = pd.read_json('fightDetect/data/' + src_dir + json_name)
-
-    # # split the column of <list> 'keypoints' into multiple cols
-    # keys = pd.DataFrame(df.keypoints.tolist(), index=df.index)
-    # keys.columns = keys.columns.map(str)
-    # keys = pd.concat([df, keys], axis=1)
-    # keys.drop(columns=keys.columns[[2, 4]], axis=1, inplace=True)
-
-    # # split the column of <list> 'box'
-    # boxes = pd.DataFrame(df.box.tolist(), index=df.index)
-    # boxes.columns = boxes.columns.map(str)
-    # boxes = pd.concat([df, boxes], axis=1)
-    # boxes.drop(columns=boxes.columns[[2, 4]], axis=1, inplace=True)
-
     # 9. left hand: 27-x, 28-y, 29-confidence
     fig = px.scatter_3d(key_df, x='27', y='28', z='image_id', color='29', symbol='idx')
     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-left-hand.html')
@@ -59,52 +43,34 @@ def draw_fft(merged_df, json_name):
     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + output_suffix + '-fft.html')
 
 
-def iter_comb(box_df, json_name):
-    # to store iou results
-    res = pd.DataFrame()
-    # to store fft results
-    fft_df = pd.DataFrame()
-    video_len = box_df['image_id'].max()
-    # fft_df['image_id'] = np.linspace(0, video_len, video_len + 1)
+# def iter_comb(box_df, json_name):
+#     # to store iou results
+#     res = pd.DataFrame()
+#     # to store fft results
+#     fft_df = pd.DataFrame()
+#     video_len = box_df['image_id'].max()
+#     # fft_df['image_id'] = np.linspace(0, video_len, video_len + 1)
 
-    p_ids = box_df['idx'].unique()
-    combs2 = list(itertools.combinations(p_ids, 2))
-    for comb in combs2:
-        iou_df = cal_iou(box_df, comb[0], comb[1], kind=iou_type)
-        # the two persons have common frames
-        if not iou_df.empty:
-            col_name = str(comb[0]) + '+' + str(comb[1])
-            # append iou data
-            iou_df['comb'] = col_name
-            res = pd.concat([res, iou_df])
+#     combs2 = dp.get_comb(box_df['idx'])
+#     for comb in combs2:
+#         iou_df = dp.cal_iou(box_df, comb[0], comb[1], kind=iou_type)
+#         # the two persons have common frames
+#         if not iou_df.empty:
+#             col_name = str(comb[0]) + '+' + str(comb[1])
+#             # append iou data
+#             iou_df['comb'] = col_name
+#             res = pd.concat([res, iou_df])
 
-            # do fft and append
-            fft_iou = do_fft(iou_df['image_id'], iou_df['iou'], video_len, interp_type)
-            if fft_iou is not None:
-                fft_iou['comb'] = col_name
-                fft_df = pd.concat([fft_df, fft_iou])
-                # fft_df = pd.merge(fft_df, fft_iou, on='image_id', how='outer')
-                # fft_df = pd.concat([fft_df, fft_iou[col_name]], axis=1)
-    draw_iou(res, json_name)
-    # fft_df.fillna(0, inplace=True)
-    draw_fft(fft_df, json_name)
-
-
-# def start_loop(dir):
-#     json_dir = os.fsencode(dir)
-#     for f in os.listdir(json_dir):
-#         fname = os.fsdecode(f)
-#         if fname.endswith(".json"): 
-#             keys = gen_key_df('fightDetect/data/' + src_dir + fname)
-#             boxes = gen_box_df('fightDetect/data/' + src_dir + fname)
-#             # drop boxes with smaller scores
-#             high_score = boxes[boxes['score'] > 2]
-#             # merged = cal_iou(boxes, 2, 3)
-#             # draw_iou(merged, fname)
-#             iter_comb(high_score, fname)
-#             print()
-#             # draw_fig(keys, fname)
-#     print()
+#             # do fft and append
+#             fft_iou = dp.do_fft(iou_df['image_id'], iou_df['iou'], video_len, interp_type)
+#             if fft_iou is not None:
+#                 fft_iou['comb'] = col_name
+#                 fft_df = pd.concat([fft_df, fft_iou])
+#                 # fft_df = pd.merge(fft_df, fft_iou, on='image_id', how='outer')
+#                 # fft_df = pd.concat([fft_df, fft_iou[col_name]], axis=1)
+#     draw_iou(res, json_name)
+#     # fft_df.fillna(0, inplace=True)
+#     draw_fft(fft_df, json_name)
 
 
 src_dir = "test/"
@@ -117,8 +83,12 @@ output_suffix = '-' + iou_type + \
 
 
 if __name__ == '__main__':
-    for keys, boxes, fname in iter_files('fightDetect/data/' + src_dir):
-            high_score = boxes[boxes['score'] > score_thre]
-            iter_comb(high_score, fname)
-            print()
+    for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
+        high_score = boxes[boxes['score'] > score_thre]
+        iou_df, fft_df = dp.comb_iou_fft(high_score, iou_type=iou_type, 
+                                         interp_type=interp_type)
+        draw_iou(iou_df, fname)
+        draw_fft(fft_df, fname)
+        
+        print()
 

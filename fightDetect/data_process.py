@@ -4,6 +4,7 @@ from scipy.fftpack import fft
 from scipy.signal import stft
 from scipy.interpolate import interp1d
 import os
+import itertools
 
 
 def gen_key_df(json_dir):
@@ -133,4 +134,35 @@ def iter_files(files_dir):
             keys = gen_key_df(files_dir + fname)
             boxes = gen_box_df(files_dir + fname)
             yield keys, boxes, fname
+
+
+def get_comb(ser):
+    p_ids = ser.unique()
+    return list(itertools.combinations(p_ids, 2))
+
+
+def comb_iou_fft(box_df, iou_type, interp_type):
+    # to store iou results
+    res = pd.DataFrame()
+    # to store fft results
+    fft_df = pd.DataFrame()
+    video_len = box_df['image_id'].max()
+
+    combs2 = get_comb(box_df['idx'])
+    for comb in combs2:
+        iou_df = cal_iou(box_df, comb[0], comb[1], kind=iou_type)
+        # the two persons have common frames
+        if not iou_df.empty:
+            col_name = str(comb[0]) + '+' + str(comb[1])
+            # append iou data
+            iou_df['comb'] = col_name
+            res = pd.concat([res, iou_df])
+
+            # do fft and append
+            fft_iou = do_fft(iou_df['image_id'], iou_df['iou'], video_len, interp_type)
+            if fft_iou is not None:
+                fft_iou['comb'] = col_name
+                fft_df = pd.concat([fft_df, fft_iou])
+
+    return res, fft_df
 
