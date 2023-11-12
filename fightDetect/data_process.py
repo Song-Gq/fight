@@ -5,6 +5,7 @@ from scipy.signal import stft
 from scipy.interpolate import interp1d
 import os
 import itertools
+import matplotlib.pyplot as plt
 
 
 def gen_key_df(json_dir):
@@ -86,7 +87,66 @@ def cal_iou(box_df, id1, id2, kind='giou'):
     return p1xp2
 
 
-def do_fft(frame, value, total_len, iterp_kind='linear'):
+# def do_fft(frame, value, total_len, iterp_kind='linear'):
+#     # linear interpolation
+#     frame_min = frame.min()
+#     frame_max = frame.max()
+#     # valid frame > 10
+#     if frame.shape[0] > 10:
+#         frame_len = frame_max - frame_min + 1
+#         x = np.linspace(frame_min, frame_max, num=frame_len)
+#         # interpolate values that are missing
+#         f1 = interp1d(frame, value, kind=iterp_kind)
+#         y = f1(x)
+
+#         fft_res = pd.DataFrame()
+#         fft_res['image_id'] = x
+#         fft_res['y'] = y
+
+#         # fill zeroes in the front and end
+#         df_fill = pd.DataFrame()
+#         df_fill['image_id'] = np.linspace(0, total_len, total_len + 1)
+#         df_fill = pd.merge(df_fill, fft_res, on='image_id', how='outer')
+#         df_fill.fillna(0, inplace=True)
+
+#         # do fft
+#         fft_y = fft(list(df_fill['y']))
+#         abs_y = np.abs(fft_y)
+#         norm_y = abs_y / (total_len + 1)
+
+#         # # stft
+#         # fs = 25
+#         # nperseg = 100
+#         # f2, t2, Zxx = stft(list(df_fill['y']), fs, nperseg=nperseg, window='hann')
+#         # plt.pcolormesh(t2, f2, np.abs(Zxx), vmin=0, vmax=0.05, shading='gouraud')
+#         # plt.show()
+#         # print()
+
+#         df_fill['y'] = norm_y
+#         return df_fill
+#     return None
+
+
+def do_fft(df, total_len):
+    # do fft
+    fft_y = fft(list(df['iou']))
+    abs_y = np.abs(fft_y)
+    norm_y = abs_y / (total_len + 1)
+
+    df['y'] = norm_y
+
+    # # stft
+    # fs = 25
+    # nperseg = 100
+    # f2, t2, Zxx = stft(list(df['iou']), fs, nperseg=nperseg, window='hann')
+    # plt.pcolormesh(t2, f2, np.abs(Zxx), vmin=0, vmax=0.05, shading='gouraud')
+    # plt.show()
+    # print()
+
+    return df
+
+
+def do_interp(frame, value, total_len, iterp_kind='linear'):
     # linear interpolation
     frame_min = frame.min()
     frame_max = frame.max()
@@ -100,28 +160,13 @@ def do_fft(frame, value, total_len, iterp_kind='linear'):
 
         fft_res = pd.DataFrame()
         fft_res['image_id'] = x
-        fft_res['y'] = y
+        fft_res['iou'] = y
 
         # fill zeroes in the front and end
         df_fill = pd.DataFrame()
         df_fill['image_id'] = np.linspace(0, total_len, total_len + 1)
         df_fill = pd.merge(df_fill, fft_res, on='image_id', how='outer')
         df_fill.fillna(0, inplace=True)
-
-        # do fft
-        fft_y = fft(list(df_fill['y']))
-        abs_y = np.abs(fft_y)
-        norm_y = abs_y / (total_len + 1)
-
-        # # stft
-        # fs = 25
-        # nperseg = 100
-        # f2, t2, Zxx = stft(list(df_fill['y']), fs, nperseg=nperseg, window='hann')
-        # plt.pcolormesh(t2, f2, np.abs(Zxx), vmin=0, vmax=0.05, shading='gouraud')
-        # plt.show()
-        # print()
-
-        df_fill['y'] = norm_y
         return df_fill
     return None
 
@@ -154,15 +199,34 @@ def comb_iou_fft(box_df, iou_type, interp_type):
         # the two persons have common frames
         if not iou_df.empty:
             col_name = str(comb[0]) + '+' + str(comb[1])
-            # append iou data
-            iou_df['comb'] = col_name
-            res = pd.concat([res, iou_df])
+            # # append iou data
+            # iou_df['comb'] = col_name
+            # res = pd.concat([res, iou_df])
 
-            # do fft and append
-            fft_iou = do_fft(iou_df['image_id'], iou_df['iou'], video_len, interp_type)
-            if fft_iou is not None:
-                fft_iou['comb'] = col_name
+            # do interpolation
+            res_interp = do_interp(iou_df['image_id'], iou_df['iou'], video_len, interp_type)
+            if res_interp is not None:
+                # append iou data
+                res_interp['comb'] = col_name
+                res = pd.concat([res, res_interp])
+
+                # do fft and append
+                fft_iou = do_fft(res_interp, video_len)
                 fft_df = pd.concat([fft_df, fft_iou])
 
+            # do fft and append
+            # fft_iou = do_fft(iou_df['image_id'], iou_df['iou'], video_len, interp_type)
+            # if fft_iou is not None:
+            #     fft_iou['comb'] = col_name
+            #     fft_df = pd.concat([fft_df, fft_iou])
+
+            # # do fft and append
+            # fft_iou = do_fft(iou_df['image_id'], iou_df['iou'], video_len, interp_type)
+            # if fft_iou is not None:
+            #     fft_iou['comb'] = col_name
+            #     fft_df = pd.concat([fft_df, fft_iou])
+
+    # actually, these 2 dfs are the same
+    # to keep old uses of the function no need to change
     return res, fft_df
 
