@@ -43,6 +43,25 @@ def draw_fft(merged_df, json_name):
     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + output_suffix + '-fft.html')
 
 
+def draw_xy(box_df, json_name):
+    # box ouput format: x, y, w, h
+    fig = px.scatter_3d(box_df, x='0', y='1', z='image_id', color='score', symbol='idx')
+    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-xy.html')
+
+
+def draw_xy_fft(fft_df, json_name):
+    x_fft = fft_df[['image_id', 'x_fft', 'idx']].copy(deep=True)
+    x_fft.columns = ['image_id', 'fft', 'idx']
+    x_fft['axis'] = 'x'
+    y_fft = fft_df[['image_id', 'y_fft', 'idx']].copy(deep=True)
+    y_fft.columns = ['image_id', 'fft', 'idx']
+    y_fft['axis'] = 'y'
+    fft_xy = pd.concat([x_fft, y_fft], axis=0)
+
+    fig = px.line(fft_xy, x='image_id', y='fft', color='idx', facet_col='axis')
+    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-xy-fft.html')
+
+
 src_dir = "test/"
 iou_type = 'giou'
 score_thre = 2
@@ -54,11 +73,20 @@ output_suffix = '-' + iou_type + \
 
 if __name__ == '__main__':
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
+        # drop data with lower scores
         high_score = boxes[boxes['score'] > score_thre]
-        iou_df, fft_df = dp.comb_iou_fft(high_score, iou_type=iou_type, 
-                                         interp_type=interp_type)
-        draw_iou(iou_df, fname)
-        draw_fft(fft_df, fname)
+
+        # cal iou and do fft
+        # iou_df, fft_df = dp.comb_iou_fft(high_score, iou_type=iou_type, 
+        #                                  interp_type=interp_type)
+        # draw_iou(iou_df, fname)
+        # draw_fft(fft_df, fname)
+        
+        # draw x, y trajectoreis of box centers
+        # draw_xy(high_score, fname)
+
+        xy_fft_df = dp.do_xy_fft(high_score, interp_type=interp_type)
+        draw_xy_fft(xy_fft_df, fname)
         
         print()
 

@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy.fftpack import fft
+from scipy.fftpack import fft, fft2
 from scipy.signal import stft
 from scipy.interpolate import interp1d
 import os
@@ -127,13 +127,13 @@ def cal_iou(box_df, id1, id2, kind='giou'):
 #     return None
 
 
-def do_fft(df, total_len):
+def do_fft(df, col_name, total_len, fft_col_name='y'):
     # do fft
-    fft_y = fft(list(df['iou']))
+    fft_y = fft(list(df[col_name]))
     abs_y = np.abs(fft_y)
     norm_y = abs_y / (total_len + 1)
 
-    df['y'] = norm_y
+    df[fft_col_name] = norm_y
 
     # # stft
     # fs = 25
@@ -146,7 +146,24 @@ def do_fft(df, total_len):
     return df
 
 
-def do_interp(frame, value, total_len, iterp_kind='linear'):
+# discarded
+def do_fft2(df, col1, col2, total_len):
+    arr_2d = df[[col1, col2]].values
+    arr_2d.reshape(-1, 2)
+    # do fft in 2 dimensions
+    fft_y = fft2(arr_2d)
+    abs_y = np.abs(fft_y)
+    norm_y = abs_y / (total_len + 1)
+
+    norm_y = pd.DataFrame(norm_y)
+    df['x_fft'] = norm_y[0]
+    df['y_fft'] = norm_y[1]
+    return df
+
+
+def do_interp(raw_df, frame_col, val_col, total_len, iterp_kind='linear'):
+    frame = raw_df[frame_col]
+    value = raw_df[val_col]
     # linear interpolation
     frame_min = frame.min()
     frame_max = frame.max()
@@ -158,14 +175,14 @@ def do_interp(frame, value, total_len, iterp_kind='linear'):
         f1 = interp1d(frame, value, kind=iterp_kind)
         y = f1(x)
 
-        fft_res = pd.DataFrame()
-        fft_res['image_id'] = x
-        fft_res['iou'] = y
+        interp_res = pd.DataFrame()
+        interp_res['image_id'] = x
+        interp_res[val_col] = y
 
         # fill zeroes in the front and end
         df_fill = pd.DataFrame()
         df_fill['image_id'] = np.linspace(0, total_len, total_len + 1)
-        df_fill = pd.merge(df_fill, fft_res, on='image_id', how='outer')
+        df_fill = pd.merge(df_fill, interp_res, on='image_id', how='outer')
         df_fill.fillna(0, inplace=True)
         return df_fill
     return None
@@ -204,14 +221,14 @@ def comb_iou_fft(box_df, iou_type, interp_type):
             # res = pd.concat([res, iou_df])
 
             # do interpolation
-            res_interp = do_interp(iou_df['image_id'], iou_df['iou'], video_len, interp_type)
+            res_interp = do_interp(iou_df, 'image_id', 'iou', video_len, interp_type)
             if res_interp is not None:
                 # append iou data
                 res_interp['comb'] = col_name
                 res = pd.concat([res, res_interp])
 
                 # do fft and append
-                fft_iou = do_fft(res_interp, video_len)
+                fft_iou = do_fft(res_interp, 'iou', video_len)
                 fft_df = pd.concat([fft_df, fft_iou])
 
             # do fft and append
@@ -230,3 +247,30 @@ def comb_iou_fft(box_df, iou_type, interp_type):
     # to keep old uses of the function no need to change
     return res, fft_df
 
+
+def do_xy_fft(box_df, interp_type):
+    # box ouput format: x, y, w, h
+    # to store fft results
+    fft_df = pd.DataFrame()
+    video_len = box_df['image_id'].max()
+
+    p_ids = box_df['idx'].unique()
+    for p in p_ids:
+        p_df = box_df[box_df['idx'] == p]
+        # valid frame > 10
+        if p_df.shape[0] > 10:
+            # do interpolation
+            x_interp = do_interp(p_df, 'image_id', '0', video_len, interp_type)
+            y_interp = do_interp(p_df, 'image_id', '1', video_len, interp_type)
+            xy_interp = pd.merge(x_interp, y_interp, on='image_id', how='outer')
+            xy_interp.fillna(0, inplace=True)
+
+            # do fft and append
+            fft_x = do_fft(xy_interp, '0', video_len, fft_col_name='x_fft')
+            fft_xy = do_fft(fft_x, '1', video_len, fft_col_name='y_fft')
+
+            # fft_xy = do_fft2(xy_interp, '0', '1', video_len)
+            fft_xy['idx'] = p
+            fft_df = pd.concat([fft_df, fft_xy])
+
+    return fft_df
