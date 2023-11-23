@@ -6,6 +6,8 @@ from scipy.interpolate import interp1d
 import os
 import itertools
 import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
 
 
 def gen_key_df(json_dir):
@@ -274,3 +276,34 @@ def do_xy_fft(box_df, interp_type):
             fft_df = pd.concat([fft_df, fft_xy])
 
     return fft_df
+
+
+def poly_regress(box_df, val_col, linear=False):
+    res_df = pd.DataFrame()
+    video_len = box_df['image_id'].max()
+    p_ids = box_df['idx'].unique()
+    for p in p_ids:
+        p_df = box_df[box_df['idx'] == p]
+        # valid frame > 10
+        if p_df.shape[0] > 10:
+            # avoid exponential explosion
+            # 2-degree does noe match the real scene that a man's speed cannot grow at a squared way
+            quadratic_featurizer = PolynomialFeatures(degree=2, interaction_only=linear)
+            X_train_quadratic = quadratic_featurizer.fit_transform(p_df['image_id'].values.reshape(-1, 1))
+            
+            regressor_quadratic = LinearRegression()
+            regressor_quadratic.fit(X_train_quadratic, p_df[val_col])
+
+            xx = np.linspace(0, video_len + 1, video_len + 2)
+            xx_quadratic = quadratic_featurizer.transform(xx.reshape(-1, 1))
+            yy_quadratic = regressor_quadratic.predict(xx_quadratic)
+
+            p_res = pd.DataFrame()
+            p_res['image_id'] = xx
+            p_res[val_col + 'reg'] = yy_quadratic
+            p_res['idx'] = p
+
+            res_df = pd.concat([res_df, p_res])
+
+    return res_df
+
