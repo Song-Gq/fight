@@ -8,6 +8,7 @@ import itertools
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
+from sklearn.tree import DecisionTreeRegressor
 
 
 def gen_key_df(json_dir):
@@ -288,19 +289,46 @@ def poly_regress(box_df, val_col, linear=False):
         if p_df.shape[0] > 10:
             # avoid exponential explosion
             # 2-degree does noe match the real scene that a man's speed cannot grow at a squared way
-            quadratic_featurizer = PolynomialFeatures(degree=2, interaction_only=linear)
-            X_train_quadratic = quadratic_featurizer.fit_transform(p_df['image_id'].values.reshape(-1, 1))
+            pf = PolynomialFeatures(degree=3, interaction_only=linear)
+            x_poly = pf.fit_transform(p_df['image_id'].values.reshape(-1, 1))
             
-            regressor_quadratic = LinearRegression()
-            regressor_quadratic.fit(X_train_quadratic, p_df[val_col])
+            lr = LinearRegression()
+            lr.fit(x_poly, p_df[val_col])
 
             xx = np.linspace(0, video_len + 1, video_len + 2)
-            xx_quadratic = quadratic_featurizer.transform(xx.reshape(-1, 1))
-            yy_quadratic = regressor_quadratic.predict(xx_quadratic)
+            xx_poly = pf.transform(xx.reshape(-1, 1))
+            yy_poly = lr.predict(xx_poly)
 
             p_res = pd.DataFrame()
             p_res['image_id'] = xx
-            p_res[val_col + 'reg'] = yy_quadratic
+            p_res[val_col + 'reg'] = yy_poly
+            p_res['idx'] = p
+
+            res_df = pd.concat([res_df, p_res])
+
+    return res_df
+
+
+def tree_reg(box_df, val_col, extra_arg=None):
+    res_df = pd.DataFrame()
+    video_len = box_df['image_id'].max()
+    p_ids = box_df['idx'].unique()
+    for p in p_ids:
+        p_df = box_df[box_df['idx'] == p]
+        # valid frame > 10
+        if p_df.shape[0] > 10:
+            x = p_df['image_id'].values.reshape(-1, 1)
+            y = p_df[val_col].values
+
+            tree = DecisionTreeRegressor(max_depth=3)
+            tree.fit(x, y)
+
+            xx = np.linspace(0, video_len + 1, video_len + 2)
+            y_pred = tree.predict(xx.reshape(-1, 1))
+            
+            p_res = pd.DataFrame()
+            p_res['image_id'] = xx
+            p_res[val_col + 'reg'] = y_pred
             p_res['idx'] = p
 
             res_df = pd.concat([res_df, p_res])

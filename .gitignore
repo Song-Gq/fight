@@ -1,4 +1,5 @@
 # mypy
+*.xlsx
 .mypy_cache/
 .vscode
 .tensorboard

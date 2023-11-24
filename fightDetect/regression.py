@@ -3,6 +3,7 @@ import plotly.express as px
 import plotly
 import pandas as pd
 import data_process as dp
+import xlwt
 
 
 def draw_3d_reg(reg_df, json_name):
@@ -29,11 +30,15 @@ def draw_2d_reg(reg_df, json_name):
     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-y.html')
 
 
+def abs_mean(x):
+    return abs(x).mean()
+
+
 src_dir = "test/"
 # iou_type = 'giou'
 score_thre = 2.6
 # interp_type = 'previous'
-linear = True
+linear = False
 output_suffix = '-reg=' + str(linear) + \
     '-score-thre=' + str(score_thre)
 
@@ -45,17 +50,23 @@ if __name__ == '__main__':
         # using higher threshold here
         high_score = boxes[boxes['score'] > score_thre]
 
-        x_reg = dp.poly_regress(high_score, '0', linear=linear)
-        y_reg = dp.poly_regress(high_score, '1', linear=linear)
+        # polynomial regression
+        # x_reg = dp.poly_regress(high_score, '0', linear=linear)
+        # y_reg = dp.poly_regress(high_score, '1', linear=linear)
+
+        # decesion tree regression
+        x_reg = dp.tree_reg(high_score, '0')
+        y_reg = dp.tree_reg(high_score, '1')
 
         xy_reg = pd.merge(x_reg, y_reg, on=['image_id', 'idx'], how='inner')
+
         # drop data where the length < 10 (either x or y) from one person
         valid_p = xy_reg['idx'].unique()
         valid_df = high_score[high_score['idx'].isin(valid_p)]
         reg_res = pd.merge(xy_reg, valid_df, on=['image_id', 'idx'], how='outer')
 
-        # draw_3d_reg(reg_res, fname)
-        # draw_2d_reg(reg_res, fname)
+        draw_3d_reg(reg_res, fname)
+        draw_2d_reg(reg_res, fname)
 
         # cal the diff between reg and raw data
         # only the values of points in 'high_score' is calculated 
@@ -66,16 +77,17 @@ if __name__ == '__main__':
         diff['y_diff'] = diff['1'] - diff['1reg']
 
         # mean diff
-        statis = diff.groupby(['idx'])['x_diff'].agg(np.mean).reset_index()
-        statis['file'] = fname
-        statis_res = pd.concat([statis_res, statis], axis=0)
+        x_diff = diff.groupby(['idx'])['x_diff'].agg([abs_mean, 'var']).reset_index()
+        y_diff = diff.groupby(['idx'])['y_diff'].agg([abs_mean, 'var']).reset_index()
+        xy_diff = pd.merge(x_diff, y_diff, on='idx', how='outer')
+        xy_diff['file'] = fname
+        statis_res = pd.concat([statis_res, xy_diff], axis=0)
 
         # draw fig
         # fig = px.scatter_3d(diff, x='x_diff', y='y_diff', z='image_id', symbol='idx', color='score')
         # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-xy-reg-diff.html')
         
-        
-
+    statis_res.to_excel('statis_res.xlsx')
     print()
 
         # # 3d scatter
