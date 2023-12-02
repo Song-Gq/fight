@@ -164,7 +164,7 @@ def do_fft2(df, col1, col2, total_len):
     return df
 
 
-def do_interp(raw_df, frame_col, val_col, total_len, iterp_kind='linear'):
+def do_interp(raw_df, frame_col, val_col, total_len, iterp_kind='linear', fill0=True):
     frame = raw_df[frame_col]
     value = raw_df[val_col]
     # linear interpolation
@@ -183,11 +183,13 @@ def do_interp(raw_df, frame_col, val_col, total_len, iterp_kind='linear'):
         interp_res[val_col] = y
 
         # fill zeroes in the front and end
-        df_fill = pd.DataFrame()
-        df_fill['image_id'] = np.linspace(0, total_len, total_len + 1)
-        df_fill = pd.merge(df_fill, interp_res, on='image_id', how='outer')
-        df_fill.fillna(0, inplace=True)
-        return df_fill
+        if fill0:
+            df_fill = pd.DataFrame()
+            df_fill['image_id'] = np.linspace(0, total_len, total_len + 1)
+            df_fill = pd.merge(df_fill, interp_res, on='image_id', how='outer')
+            df_fill.fillna(0, inplace=True)
+            return df_fill
+        return interp_res
     return None
 
 
@@ -265,6 +267,8 @@ def do_xy_fft(box_df, interp_type):
             # do interpolation
             x_interp = do_interp(p_df, 'image_id', '0', video_len, interp_type)
             y_interp = do_interp(p_df, 'image_id', '1', video_len, interp_type)
+            # using outer merge might be wrong!!!
+            # generating duplicate data??? (multiple lines for one frame)
             xy_interp = pd.merge(x_interp, y_interp, on='image_id', how='outer')
             xy_interp.fillna(0, inplace=True)
 
@@ -279,14 +283,14 @@ def do_xy_fft(box_df, interp_type):
     return fft_df
 
 
-def poly_regress(box_df, val_col, linear=False):
+def poly_regress(box_df, val_col, linear=False, min_len=10):
     res_df = pd.DataFrame()
     video_len = box_df['image_id'].max()
     p_ids = box_df['idx'].unique()
     for p in p_ids:
         p_df = box_df[box_df['idx'] == p]
-        # valid frame > 10
-        if p_df.shape[0] > 10:
+        # valid frame > min_len
+        if p_df.shape[0] > min_len:
             # avoid exponential explosion
             # 2-degree does noe match the real scene that a man's speed cannot grow at a squared way
             pf = PolynomialFeatures(degree=3, interaction_only=linear)
@@ -309,14 +313,14 @@ def poly_regress(box_df, val_col, linear=False):
     return res_df
 
 
-def tree_reg(box_df, val_col, extra_arg=None):
+def tree_reg(box_df, val_col, min_len=10):
     res_df = pd.DataFrame()
     video_len = box_df['image_id'].max()
     p_ids = box_df['idx'].unique()
     for p in p_ids:
         p_df = box_df[box_df['idx'] == p]
-        # valid frame > 10
-        if p_df.shape[0] > 10:
+        # valid frame > min_len
+        if p_df.shape[0] > min_len:
             x = p_df['image_id'].values.reshape(-1, 1)
             y = p_df[val_col].values
 
@@ -335,3 +339,70 @@ def tree_reg(box_df, val_col, extra_arg=None):
 
     return res_df
 
+
+# calculate the gradient and segment data using decision trees
+# and then using regression to fit every segment
+def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='linear'):
+    res_df = pd.DataFrame()
+    video_len = box_df['image_id'].max()
+    p_ids = box_df['idx'].unique()
+    for p in p_ids:
+        p_df = box_df[box_df['idx'] == p]
+        # valid frame > min_len
+        if p_df.shape[0] > min_len:
+            # do interpolation
+            # the x, y here represent the axes in the video frame
+            # 0 is not filled in the front and end of the time series
+            x_interp = do_interp(p_df, 'image_id', '0', video_len, interp_type, fill0=False)
+            y_interp = do_interp(p_df, 'image_id', '1', video_len, interp_type, fill0=False)
+            xy_interp = pd.merge(x_interp, y_interp, on='image_id', how='inner')
+            xy_interp.fillna(0, inplace=True)
+
+            # the x, y here represent frame number and value seperately
+            x = xy_interp['image_id'].values
+            y = xy_interp[val_col].values
+            # calculate the gradient of y
+            dy = np.gradient(y, x)
+
+            tree = DecisionTreeRegressor(max_leaf_nodes=max_seg)
+            tree.fit(x.reshape(-1, 1), dy.reshape(-1, 1))
+            dy_pred = tree.predict(x.reshape(-1, 1))
+
+            # iter the segments by decision trees
+            seg_idx = 0
+            for seg_val in np.unique(dy_pred):
+                msk = dy_pred == seg_val
+                x_seg = x[msk].reshape(-1, 1)
+                y_seg = y[msk].reshape(-1, 1)
+
+                # drop segments that is too short
+                if x_seg.shape[0] > min_len:
+                    seg_start = int(x_seg.min())
+                    seg_end = int(x_seg.max())
+                    seg_len = seg_end - seg_start + 1
+
+                    # using polynomial regression to fit every segment
+                    pf = PolynomialFeatures(degree=reg_deg)
+                    x_poly = pf.fit_transform(x_seg)
+                    
+                    lr = LinearRegression()
+                    lr.fit(x_poly, y_seg)
+
+                    xx_seg = np.linspace(seg_start, seg_end, seg_len)
+                    xx_poly = pf.transform(xx_seg.reshape(-1, 1))
+                    yy_poly = lr.predict(xx_poly)
+
+                    seg_res = pd.DataFrame()
+                    seg_res['image_id'] = xx_seg
+                    seg_res[val_col + 'reg'] = yy_poly
+                    seg_res['idx'] = p
+                    seg_res['seg'] = seg_idx
+                    # seg_res['seg'] = val_col + '+' + str(seg_idx)
+                    # if val_col == '0':
+                    #     seg_res['x_seg'] = seg_idx
+                    # else:
+                    #     seg_res['y_seg'] = seg_idx
+
+                    res_df = pd.concat([res_df, seg_res])
+                seg_idx = seg_idx + 1
+    return res_df
