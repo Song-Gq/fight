@@ -208,7 +208,7 @@ def get_comb(ser):
     return list(itertools.combinations(p_ids, 2))
 
 
-def comb_iou_fft(box_df, iou_type, interp_type):
+def comb_iou_fft(box_df, iou_type, interp_type, fill0=True):
     # to store iou results
     res = pd.DataFrame()
     # to store fft results
@@ -226,7 +226,7 @@ def comb_iou_fft(box_df, iou_type, interp_type):
             # res = pd.concat([res, iou_df])
 
             # do interpolation
-            res_interp = do_interp(iou_df, 'image_id', 'iou', video_len, interp_type)
+            res_interp = do_interp(iou_df, 'image_id', 'iou', video_len, interp_type, fill0=fill0)
             if res_interp is not None:
                 # append iou data
                 res_interp['comb'] = col_name
@@ -343,21 +343,35 @@ def tree_reg(box_df, val_col, min_len=10):
 # calculate the gradient and segment data using decision trees
 # and then using regression to fit every segment
 def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='linear'):
+    # the value column is iou data
+    if val_col == 'iou':
+        # then the identity column is 'comb', combination of pedestrians
+        id_col = 'comb'
+    # the value column is x, y location data
+    else:
+        # then the identity column is 'idx', represents the pedestrians
+        id_col = 'idx'
+
     res_df = pd.DataFrame()
     video_len = box_df['image_id'].max()
-    p_ids = box_df['idx'].unique()
+    p_ids = box_df[id_col].unique()
+
     for p in p_ids:
-        p_df = box_df[box_df['idx'] == p]
+        p_df = box_df[box_df[id_col] == p]
         # valid frame > min_len
         if p_df.shape[0] > min_len:
-            # do interpolation
-            # the x, y here represent the axes in the video frame
-            # 0 is not filled in the front and end of the time series
-            x_interp = do_interp(p_df, 'image_id', '0', video_len, interp_type, fill0=False)
-            y_interp = do_interp(p_df, 'image_id', '1', video_len, interp_type, fill0=False)
-            xy_interp = pd.merge(x_interp, y_interp, on='image_id', how='inner')
-            xy_interp.fillna(0, inplace=True)
-
+            # iou data have already been interpolated
+            if val_col != 'iou':
+                # do interpolation
+                # the x, y here represent the axes in the video frame
+                # 0 is not filled in the front and end of the time series
+                x_interp = do_interp(p_df, 'image_id', '0', video_len, interp_type, fill0=False)
+                y_interp = do_interp(p_df, 'image_id', '1', video_len, interp_type, fill0=False)
+                xy_interp = pd.merge(x_interp, y_interp, on='image_id', how='inner')
+                xy_interp.fillna(0, inplace=True)
+            else:
+                xy_interp = p_df
+                
             # the x, y here represent frame number and value seperately
             x = xy_interp['image_id'].values
             y = xy_interp[val_col].values
@@ -395,7 +409,7 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
                     seg_res = pd.DataFrame()
                     seg_res['image_id'] = xx_seg
                     seg_res[val_col + 'reg'] = yy_poly
-                    seg_res['idx'] = p
+                    seg_res[id_col] = p
                     seg_res['seg'] = seg_idx
                     # seg_res['seg'] = val_col + '+' + str(seg_idx)
                     # if val_col == '0':

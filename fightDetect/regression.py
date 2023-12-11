@@ -36,6 +36,20 @@ def draw_2d_reg(reg_df, json_name, segmented=False):
     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-y.html')
 
 
+def draw_statis(res_df):
+    df_draw = res_df.copy(deep=True)
+    df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
+
+    fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='box', marginal_y='box', hover_name='file')
+    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-scatter.html')
+    
+    fig = px.histogram(df_draw, x='var_x', color='cat', marginal='rug', hover_name='file')
+    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-x-hist.html')
+
+    fig = px.histogram(df_draw, x='var_y', color='cat', marginal='rug', hover_name='file')
+    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-y-hist.html')
+
+
 def abs_mean(x):
     return abs(x).mean()
 
@@ -63,55 +77,53 @@ def do_tree_seg(box_df, max_seg, reg_deg, min_len=10, interp_type='linear'):
 # merge regression results with orininal box data
 # drop data where the length < 'arg' (either x or y) from one person
 # but the len arg is defined in the regression function 
-def valid_merge(xy_df, raw_df, inner=False):
+def valid_merge(xy_df, raw_df, inner=False, id_col='idx'):
     how_opt = 'inner' if inner else 'outer'
-    valid_p = xy_df['idx'].unique()
-    valid_df = raw_df[raw_df['idx'].isin(valid_p)]
-    return pd.merge(xy_df, valid_df, on=['image_id', 'idx'], how=how_opt)
+    valid_p = xy_df[id_col].unique()
+    # # split the comb data into ids
+    # if id_col == 'comb':
+    #     new_valid_p = []
+    #     for p in valid_p:
+    #         ps = p.split('+')
+    #         new_valid_p = new_valid_p + ps
+    #     valid_p = new_valid_p
+    valid_df = raw_df[raw_df[id_col].isin(valid_p)]
+    return pd.merge(xy_df, valid_df, on=['image_id', id_col], how=how_opt)
 
 
 # cal the diff between reg and raw data
 # only the values of points in 'high_score' is calculated 
 # which means missing points is not considered
-def cal_reg_diff(xy_df, raw_df, file_name):
-    diff_df = valid_merge(xy_df, raw_df, inner=True)
-    diff_df['x_diff'] = diff_df['0'] - diff_df['0reg']
-    diff_df['y_diff'] = diff_df['1'] - diff_df['1reg']
+def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy'):
+    if data_type == 'xy':
+        diff_df = valid_merge(xy_df, raw_df, inner=True)
+        diff_df['x_diff'] = diff_df['0'] - diff_df['0reg']
+        diff_df['y_diff'] = diff_df['1'] - diff_df['1reg']
 
-    # mean diff
-    x_diff_df = diff_df.groupby(['idx'])['x_diff'].agg([abs_mean, 'var']).reset_index()
-    y_diff_df = diff_df.groupby(['idx'])['y_diff'].agg([abs_mean, 'var']).reset_index()
-    xy_diff_df = pd.merge(x_diff_df, y_diff_df, on='idx', how='outer')
-    xy_diff_df['file'] = file_name
+        # mean diff
+        x_diff_df = diff_df.groupby(['idx'])['x_diff'].agg([abs_mean, 'var']).reset_index()
+        y_diff_df = diff_df.groupby(['idx'])['y_diff'].agg([abs_mean, 'var']).reset_index()
+        xy_diff_df = pd.merge(x_diff_df, y_diff_df, on='idx', how='outer')
+        xy_diff_df['file'] = file_name
+        return xy_diff_df
+    # data_type == 'iou'
+    else:
+        diff_df = valid_merge(xy_df, raw_df, inner=True, id_col='comb')
+        diff_df['iou_diff'] = diff_df['iou'] - diff_df['ioureg']
 
-    return xy_diff_df
-
-
-src_dir = "test/"
-# iou_type = 'giou'
-score_thre = 2.6
-# interp_type = 'previous'
-linear = False
-output_suffix = '-reg=' + str(linear) + \
-    '-score-thre=' + str(score_thre)
-max_segment_num = 5
-segment_reg_deg = 2
-valid_min_frame = 10
-interp_method = 'previous'
+        # mean diff
+        iou_diff_df = diff_df.groupby(['comb'])['iou_diff'].agg([abs_mean, 'var']).reset_index()
+        iou_diff_df['file'] = file_name
+        return iou_diff_df
 
 
-if __name__ == '__main__':
+# do segmentation and regression based on x, y location data of a person
+def start_location_reg():
     statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         # drop data with lower scores
         # using higher threshold here
         high_score = boxes[boxes['score'] > score_thre]
-
-        # xy_reg = do_poly_reg(high_score, lin_reg=linear, min_len=valid_min_frame)
-        # xy_reg = do_tree_reg(high_score, min_len=valid_min_frame)
-        # reg_res = valid_merge(xy_reg, high_score)
-        # draw_3d_reg(reg_res, fname)
-        # draw_2d_reg(reg_res, fname)
 
         xy_seg = do_tree_seg(high_score, max_segment_num, segment_reg_deg, 
                              min_len=valid_min_frame, interp_type=interp_method)
@@ -126,69 +138,101 @@ if __name__ == '__main__':
 
         xy_diff = cal_reg_diff(xy_seg, high_score, fname)
         statis_res = pd.concat([statis_res, xy_diff], axis=0)
-
-        print()
-
-        # polynomial regression
-        # x_reg = dp.poly_regress(high_score, '0', linear=linear)
-        # y_reg = dp.poly_regress(high_score, '1', linear=linear)
-
-        # decesion tree regression
-        # x_reg = dp.tree_reg(high_score, '0')
-        # y_reg = dp.tree_reg(high_score, '1')
-
-        # xy_reg = pd.merge(x_reg, y_reg, on=['image_id', 'idx'], how='inner')
-
-        # decesion tree segmentation and polynomial regression
-        # x_seg = dp.tree_seg(high_score, '0', max_seg=5, reg_deg=2)
-        # y_seg = dp.tree_seg(high_score, '1', max_seg=5, reg_deg=2)
-        # xy_seg = pd.merge(x_seg, y_seg, on=['image_id', 'idx', 'seg'], how='inner')
-
-        # drop data where the length < 10 (either x or y) from one person
-        # valid_p = xy_reg['idx'].unique()
-        # valid_df = high_score[high_score['idx'].isin(valid_p)]
-        # reg_res = pd.merge(xy_reg, valid_df, on=['image_id', 'idx'], how='outer')
-
-        # cal the diff between reg and raw data
-        # only the values of points in 'high_score' is calculated 
-        # which means missing points is not considered
-        # diff = pd.merge(xy_reg, valid_df, on=['image_id', 'idx'], how='inner')
-        # diff['x_diff'] = diff['0'] - diff['0reg']
-        # # diff['x_diff'] = np.abs(diff['0'] - diff['0reg'])
-        # diff['y_diff'] = diff['1'] - diff['1reg']
-
-        # # mean diff
-        # x_diff = diff.groupby(['idx'])['x_diff'].agg([abs_mean, 'var']).reset_index()
-        # y_diff = diff.groupby(['idx'])['y_diff'].agg([abs_mean, 'var']).reset_index()
-        # xy_diff = pd.merge(x_diff, y_diff, on='idx', how='outer')
-        # xy_diff['file'] = fname
-        # statis_res = pd.concat([statis_res, xy_diff], axis=0)
-
-        # draw fig
-        # fig = px.scatter_3d(diff, x='x_diff', y='y_diff', z='image_id', symbol='idx', color='score')
-        # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-xy-reg-diff.html')
-        
     statis_res.to_excel('statis_res' + output_suffix + '.xlsx')
-    print()
-
-        # # 3d scatter
-        # fig = px.scatter_3d(xy_reg, x='0reg', y='1reg', z='image_id', symbol='idx', color='score')
-        # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-xy-reg.html')
-
-        # fig = px.scatter_3d(xy_reg, x='0', y='1', z='image_id', symbol='idx', color='score')
-        # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-xy.html')
-
-        # # 2d line
-        # fig = px.line(xy_reg, x='image_id', y='0reg', facet_col='idx')
-        # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-x-reg.html')
-
-        # fig = px.line(xy_reg, x='image_id', y='0', facet_col='idx')
-        # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-x.html')
-
-        # fig = px.line(xy_reg, x='image_id', y='1reg', facet_col='idx')
-        # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-y-reg.html')
-
-        # fig = px.line(xy_reg, x='image_id', y='1', facet_col='idx')
-        # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-y.html')
+    draw_statis(statis_res)
 
 
+# do segmentation and regression based on iou data of a combination of persons
+def start_iou_reg():
+    iou_statis_res = pd.DataFrame()
+    for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
+        # drop data with lower scores
+        # using higher threshold here
+        high_score = boxes[boxes['score'] > score_thre]
+        # do segmentation and regression for iou data
+        # fft_df is useless here
+        iou_df, fft_df = dp.comb_iou_fft(
+            high_score, iou_type=iou_type, interp_type=interp_method, fill0=False)
+        if iou_df.shape[0] > valid_min_frame:
+            iou_seg = dp.tree_seg(iou_df, 'iou', max_seg=max_segment_num, reg_deg=segment_reg_deg,
+                                min_len=valid_min_frame, interp_type=interp_method)
+            iou_reg_res = valid_merge(iou_seg, iou_df, inner=True, id_col='comb')
+            
+            # fig = px.line(iou_reg_res, x='image_id', y='ioureg', facet_col='comb', facet_row='seg')
+            # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou-reg.html')
+
+            # fig = px.line(iou_reg_res, x='image_id', y='iou', facet_col='comb', facet_row='seg')
+            # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou.html')
+
+            iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
+            iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
+    iou_statis_res.to_excel('iou_statis_res' + output_suffix + '.xlsx')
+    iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
+    fig = px.histogram(iou_statis_res, x='var', color='cat', marginal='rug', hover_name='file')
+    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-iou-hist.html')
+
+
+src_dir = "test-plus/"
+# iou_type = 'giou'
+score_thre = 2.6
+# interp_type = 'previous'
+linear = False
+output_suffix = '-reg=' + str(linear) + \
+    '-score-thre=' + str(score_thre)
+max_segment_num = 5
+segment_reg_deg = 2
+valid_min_frame = 10
+# for x, y location segmentation and regression
+# and for calculating iou
+interp_method = 'previous'
+iou_type = 'giou'
+
+
+if __name__ == '__main__':
+    # start_location_reg()
+    start_iou_reg()
+
+    # statis_res = pd.DataFrame()
+    # iou_statis_res = pd.DataFrame()
+    # for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
+    #     # drop data with lower scores
+    #     # using higher threshold here
+    #     high_score = boxes[boxes['score'] > score_thre]
+
+    #     xy_seg = do_tree_seg(high_score, max_segment_num, segment_reg_deg, 
+    #                          min_len=valid_min_frame, interp_type=interp_method)
+    #     reg_res = valid_merge(xy_seg, high_score, inner=True)
+
+    #     reg_res['segx'] = reg_res['segx'].astype(str)
+    #     reg_res['segy'] = reg_res['segy'].astype(str)
+    #     reg_res['seg_comb'] = reg_res['segx'] + '+' + reg_res['segy']
+
+    #     # draw_3d_reg(reg_res, fname, segmented=True)
+    #     # draw_2d_reg(reg_res, fname, segmented=True)
+
+    #     xy_diff = cal_reg_diff(xy_seg, high_score, fname)
+    #     statis_res = pd.concat([statis_res, xy_diff], axis=0)
+
+    #     # do segmentation and regression for iou data
+    #     # fft_df is useless here
+    #     iou_df, fft_df = dp.comb_iou_fft(
+    #         high_score, iou_type=iou_type, interp_type=interp_method, fill0=False)
+    #     iou_seg = dp.tree_seg(iou_df, 'iou', max_seg=max_segment_num, reg_deg=segment_reg_deg,
+    #                         min_len=valid_min_frame, interp_type=interp_method)
+    #     iou_reg_res = valid_merge(iou_seg, high_score, inner=True, id_col='comb')
+        
+    #     fig = px.line(iou_reg_res, x='image_id', y='ioureg', facet_col='comb', facet_row='seg')
+    #     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou-reg.html')
+
+    #     fig = px.line(iou_reg_res, x='image_id', y='iou', facet_col='comb', facet_row='seg')
+    #     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou.html')
+
+    #     iou_diff = cal_reg_diff(iou_seg, high_score, fname, data_type='iou')
+    #     iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
+    #     print()
+        
+    # statis_res.to_excel('statis_res' + output_suffix + '.xlsx')
+    # iou_statis_res.to_excel('iou_statis_res' + output_suffix + '.xlsx')
+    # draw_statis(statis_res)
+    # draw_statis(iou_statis_res)
+    # print()
