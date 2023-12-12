@@ -209,7 +209,7 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
     feature_xy = do_tree_seg(temp_df, max_segment_num, segment_reg_deg, 
                         min_len=valid_min_frame, interp_type=interp_method, 
                         xy_col=[feature_name + '_x', feature_name + '_y'])
-    if feature_xy.shape[0] > valid_min_frame:
+    if feature_xy.shape is not None:
         feature_xy = valid_merge(feature_xy, temp_df, inner=True, id_col='idx')
         feature_xy = rename_seg(feature_xy)
         
