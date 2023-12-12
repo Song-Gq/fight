@@ -15,14 +15,7 @@ def draw_fig(key_df, json_name):
     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-left-ankle.html')
 
     # calculate the speed
-    speed = key_df.sort_values(by=['idx', 'image_id'])
-    diff = speed.groupby('idx').diff().fillna(0.)
-    confi_cols = list(range(2, 78, 3))
-    for c in confi_cols:
-        diff[str(c)] = np.sqrt(diff[str(c-1)]**2 + diff[str(c-2)]**2) / diff['image_id']
-    diff = diff[[str(c) for c in range(2, 78, 3)]]
-    diff = diff.add_suffix('_speed')
-    speed = pd.concat([speed, diff], axis=1)
+    speed = dp.key_speed(key_df)
 
     # speed.fillna(0.)
     fig = px.scatter_3d(speed[speed['29'] > 0.5], x='27', y='28', z='image_id', color='29_speed', symbol='idx')

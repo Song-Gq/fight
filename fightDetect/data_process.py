@@ -90,44 +90,16 @@ def cal_iou(box_df, id1, id2, kind='giou'):
     return p1xp2
 
 
-# def do_fft(frame, value, total_len, iterp_kind='linear'):
-#     # linear interpolation
-#     frame_min = frame.min()
-#     frame_max = frame.max()
-#     # valid frame > 10
-#     if frame.shape[0] > 10:
-#         frame_len = frame_max - frame_min + 1
-#         x = np.linspace(frame_min, frame_max, num=frame_len)
-#         # interpolate values that are missing
-#         f1 = interp1d(frame, value, kind=iterp_kind)
-#         y = f1(x)
-
-#         fft_res = pd.DataFrame()
-#         fft_res['image_id'] = x
-#         fft_res['y'] = y
-
-#         # fill zeroes in the front and end
-#         df_fill = pd.DataFrame()
-#         df_fill['image_id'] = np.linspace(0, total_len, total_len + 1)
-#         df_fill = pd.merge(df_fill, fft_res, on='image_id', how='outer')
-#         df_fill.fillna(0, inplace=True)
-
-#         # do fft
-#         fft_y = fft(list(df_fill['y']))
-#         abs_y = np.abs(fft_y)
-#         norm_y = abs_y / (total_len + 1)
-
-#         # # stft
-#         # fs = 25
-#         # nperseg = 100
-#         # f2, t2, Zxx = stft(list(df_fill['y']), fs, nperseg=nperseg, window='hann')
-#         # plt.pcolormesh(t2, f2, np.abs(Zxx), vmin=0, vmax=0.05, shading='gouraud')
-#         # plt.show()
-#         # print()
-
-#         df_fill['y'] = norm_y
-#         return df_fill
-#     return None
+# calculate the speed of keypoints
+def key_speed(key_df):
+    speed = key_df.sort_values(by=['idx', 'image_id'])
+    diff = speed.groupby('idx').diff().fillna(0.)
+    confi_cols = list(range(2, 78, 3))
+    for c in confi_cols:
+        diff[str(c)] = np.sqrt(diff[str(c-1)]**2 + diff[str(c-2)]**2) / diff['image_id']
+    diff = diff[[str(c) for c in range(2, 78, 3)]]
+    diff = diff.add_suffix('_speed')
+    return pd.concat([speed, diff], axis=1)
 
 
 def do_fft(df, col_name, total_len, fft_col_name='y'):
@@ -342,11 +314,14 @@ def tree_reg(box_df, val_col, min_len=10):
 
 # calculate the gradient and segment data using decision trees
 # and then using regression to fit every segment
-def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='linear'):
+def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='linear', xy_col=['0', '1']):
     # the value column is iou data
     if val_col == 'iou':
         # then the identity column is 'comb', combination of pedestrians
         id_col = 'comb'
+    # data like speed
+    elif val_col == 'scalar':
+        id_col = 'idx'
     # the value column is x, y location data
     else:
         # then the identity column is 'idx', represents the pedestrians
@@ -361,16 +336,19 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
         # valid frame > min_len
         if p_df.shape[0] > min_len:
             # iou data have already been interpolated
-            if val_col != 'iou':
+            if val_col == 'iou':
+                xy_interp = p_df
+            # scalar data like speed. needs interpolation
+            elif val_col == 'scalar':
+                xy_interp = do_interp(p_df, 'image_id', val_col, video_len, interp_type, fill0=False)
+            else:
                 # do interpolation
                 # the x, y here represent the axes in the video frame
                 # 0 is not filled in the front and end of the time series
-                x_interp = do_interp(p_df, 'image_id', '0', video_len, interp_type, fill0=False)
-                y_interp = do_interp(p_df, 'image_id', '1', video_len, interp_type, fill0=False)
+                x_interp = do_interp(p_df, 'image_id', xy_col[0], video_len, interp_type, fill0=False)
+                y_interp = do_interp(p_df, 'image_id', xy_col[1], video_len, interp_type, fill0=False)
                 xy_interp = pd.merge(x_interp, y_interp, on='image_id', how='inner')
                 xy_interp.fillna(0, inplace=True)
-            else:
-                xy_interp = p_df
                 
             # the x, y here represent frame number and value seperately
             x = xy_interp['image_id'].values
@@ -450,29 +428,32 @@ def xy_normalize(box_df, key_df, window=10, interp_type='linear', min_p_len=10):
     box_key['RShoulder2Wrist'] = np.sqrt(box_key['RShoulder2Wrist_x']**2 + box_key['RShoulder2Wrist_y']**2)
 
     candidate_cols = ['Neck2Hip', 'LHip2Ankle', 'RHip2Ankle', 'LShoulder2Wrist', 'RShoulder2Wrist']
+    # candidate_cols = ['Neck2Hip']
     for candi in candidate_cols:
         box_key[candi].replace(0, np.nan, inplace=True)
-    box_key['body_metric'] = box_key[[
-        'Neck2Hip', 'LHip2Ankle', 'RHip2Ankle',
-          'LShoulder2Wrist', 
-          'RShoulder2Wrist']].mean(axis=1)
+    box_key['body_metric'] = box_key[candidate_cols].mean(axis=1)
     
-    # calculate mean with rolling window
-    # interpolate first
-    body_interp = pd.DataFrame()
-    video_len = box_key['image_id'].max()
-    p_ids = box_key['idx'].unique()
-    for p in p_ids:
-        p_df = box_key[box_key['idx'] == p]
-        if p_df.shape[0] > min_p_len:
-            p_interp = do_interp(p_df, 'image_id', 'body_metric', video_len, interp_kind=interp_type, fill0=False)
-            p_interp['idx'] = p
-            body_interp = pd.concat([body_interp, p_interp])
+    # # calculate mean with rolling window
+    # # interpolate first
+    # body_interp = pd.DataFrame()
+    # video_len = box_key['image_id'].max()
+    # p_ids = box_key['idx'].unique()
+    # for p in p_ids:
+    #     p_df = box_key[box_key['idx'] == p]
+    #     if p_df.shape[0] > min_p_len:
+    #         p_interp = do_interp(p_df, 'image_id', 'body_metric', video_len, interp_kind=interp_type, fill0=False)
+    #         p_interp['idx'] = p
+    #         body_interp = pd.concat([body_interp, p_interp])
 
-    body_interp['body_metric_roll'] = body_interp['body_metric'].rolling(window, center=True, min_periods=2).mean()
-    box_key = pd.merge(box_key, body_interp[['image_id', 'idx', 'body_metric_roll']], on=['image_id', 'idx'], how='inner')
+    # body_interp['body_metric_roll'] = body_interp['body_metric'].rolling(window, center=True, min_periods=2).mean()
+    # box_key = pd.merge(box_key, body_interp[['image_id', 'idx', 'body_metric_roll']], on=['image_id', 'idx'], how='inner')
 
+    # for box_col in range(0, 4):
+    #     box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['body_metric_roll']
+
+    # check if vid_metric is a scalar!!!
+    vid_metric = box_key['body_metric'].mean()
     for box_col in range(0, 4):
-        box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['body_metric_roll']
+        box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / vid_metric
     
     return box_key
