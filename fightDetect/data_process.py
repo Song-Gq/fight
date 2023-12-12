@@ -420,3 +420,42 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
                     res_df = pd.concat([res_df, seg_res])
                 seg_idx = seg_idx + 1
     return res_df
+
+
+def xy_normalize(box_df, key_df):
+    # box points: 0-3
+    # keypoints: 0k-3k, 5-77
+    box_key = pd.merge(
+        box_df, key_df, on=['image_id', 'idx'], 
+        how='inner', suffixes=['', 'k'])
+    # key 18 Neck 19 Hip
+    box_key['Neck2Hip_x'] = np.abs(box_key['54'] - box_key['57'])
+    box_key['Neck2Hip_y'] = np.abs(box_key['55'] - box_key['58'])
+    box_key['Neck2Hip'] = np.sqrt(box_key['Neck2Hip_x']**2 + box_key['Neck2Hip_y']**2)
+    # key 11 Left Hip 15 Left Ankle
+    box_key['LHip2Ankle_x'] = np.abs(box_key['33'] - box_key['45'])
+    box_key['LHip2Ankle_y'] = np.abs(box_key['34'] - box_key['46'])
+    box_key['LHip2Ankle'] = np.sqrt(box_key['LHip2Ankle_x']**2 + box_key['LHip2Ankle_y']**2)
+    # key 12 Right Hip 16 Left Ankle
+    box_key['RHip2Ankle_x'] = np.abs(box_key['36'] - box_key['48'])
+    box_key['RHip2Ankle_y'] = np.abs(box_key['37'] - box_key['49'])
+    box_key['RHip2Ankle'] = np.sqrt(box_key['RHip2Ankle_x']**2 + box_key['RHip2Ankle_y']**2)
+    # key 5 Left Shoulder 9 Left Wrist
+    box_key['LShoulder2Wrist_x'] = np.abs(box_key['15'] - box_key['27'])
+    box_key['LShoulder2Wrist_y'] = np.abs(box_key['16'] - box_key['28'])
+    box_key['LShoulder2Wrist'] = np.sqrt(box_key['LShoulder2Wrist_x']**2 + box_key['LShoulder2Wrist_y']**2)
+    # key 6 Right Shoulder 10 Right Wrist
+    box_key['RShoulder2Wrist_x'] = np.abs(box_key['18'] - box_key['30'])
+    box_key['RShoulder2Wrist_y'] = np.abs(box_key['19'] - box_key['31'])
+    box_key['RShoulder2Wrist'] = np.sqrt(box_key['RShoulder2Wrist_x']**2 + box_key['RShoulder2Wrist_y']**2)
+
+    box_key['body_metric'] = box_key[[
+        'Neck2Hip', 'LHip2Ankle', 'RHip2Ankle',
+          'LShoulder2Wrist', 
+          'RShoulder2Wrist']].median(axis=1)
+    
+    for box_col in range(0, 4):
+        box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['body_metric']
+    
+    return box_key
+

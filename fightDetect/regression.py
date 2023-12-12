@@ -118,12 +118,18 @@ def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy'):
 
 
 # do segmentation and regression based on x, y location data of a person
-def start_location_reg():
+def start_location_reg(norm=False):
     statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         # drop data with lower scores
         # using higher threshold here
         high_score = boxes[boxes['score'] > score_thre]
+
+        # normalize the x, y location data
+        if norm:
+            high_score = dp.xy_normalize(high_score, keys)
+            for box_col in range(0, 4):
+                high_score[str(box_col)] = high_score[str(box_col) + 'norm']
 
         xy_seg = do_tree_seg(high_score, max_segment_num, segment_reg_deg, 
                              min_len=valid_min_frame, interp_type=interp_method)
@@ -172,7 +178,7 @@ def start_iou_reg():
     plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-iou-hist.html')
 
 
-src_dir = "test-plus/"
+src_dir = "test-single/"
 # iou_type = 'giou'
 score_thre = 2.6
 # interp_type = 'previous'
@@ -186,11 +192,12 @@ valid_min_frame = 10
 # and for calculating iou
 interp_method = 'previous'
 iou_type = 'giou'
+normalization = True
 
 
 if __name__ == '__main__':
-    # start_location_reg()
-    start_iou_reg()
+    start_location_reg(norm=normalization)
+    # start_iou_reg()
 
     # statis_res = pd.DataFrame()
     # iou_statis_res = pd.DataFrame()
