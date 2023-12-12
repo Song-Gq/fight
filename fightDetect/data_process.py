@@ -164,18 +164,18 @@ def do_fft2(df, col1, col2, total_len):
     return df
 
 
-def do_interp(raw_df, frame_col, val_col, total_len, iterp_kind='linear', fill0=True):
+def do_interp(raw_df, frame_col, val_col, total_len, interp_kind='linear', fill0=True, min_p_len=10):
     frame = raw_df[frame_col]
     value = raw_df[val_col]
     # linear interpolation
     frame_min = frame.min()
     frame_max = frame.max()
     # valid frame > 10
-    if frame.shape[0] > 10:
+    if frame.shape[0] > min_p_len:
         frame_len = frame_max - frame_min + 1
         x = np.linspace(frame_min, frame_max, num=frame_len)
         # interpolate values that are missing
-        f1 = interp1d(frame, value, kind=iterp_kind)
+        f1 = interp1d(frame, value, kind=interp_kind)
         y = f1(x)
 
         interp_res = pd.DataFrame()
@@ -253,7 +253,7 @@ def comb_iou_fft(box_df, iou_type, interp_type, fill0=True):
     return res, fft_df
 
 
-def do_xy_fft(box_df, interp_type):
+def do_xy_fft(box_df, interp_type, min_p_len=10):
     # box ouput format: x, y, w, h
     # to store fft results
     fft_df = pd.DataFrame()
@@ -263,7 +263,7 @@ def do_xy_fft(box_df, interp_type):
     for p in p_ids:
         p_df = box_df[box_df['idx'] == p]
         # valid frame > 10
-        if p_df.shape[0] > 10:
+        if p_df.shape[0] > min_p_len:
             # do interpolation
             x_interp = do_interp(p_df, 'image_id', '0', video_len, interp_type)
             y_interp = do_interp(p_df, 'image_id', '1', video_len, interp_type)
@@ -422,7 +422,7 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
     return res_df
 
 
-def xy_normalize(box_df, key_df):
+def xy_normalize(box_df, key_df, window=10, interp_type='linear', min_p_len=10):
     # box points: 0-3
     # keypoints: 0k-3k, 5-77
     box_key = pd.merge(
@@ -449,13 +449,30 @@ def xy_normalize(box_df, key_df):
     box_key['RShoulder2Wrist_y'] = np.abs(box_key['19'] - box_key['31'])
     box_key['RShoulder2Wrist'] = np.sqrt(box_key['RShoulder2Wrist_x']**2 + box_key['RShoulder2Wrist_y']**2)
 
+    candidate_cols = ['Neck2Hip', 'LHip2Ankle', 'RHip2Ankle', 'LShoulder2Wrist', 'RShoulder2Wrist']
+    for candi in candidate_cols:
+        box_key[candi].replace(0, np.nan, inplace=True)
     box_key['body_metric'] = box_key[[
         'Neck2Hip', 'LHip2Ankle', 'RHip2Ankle',
           'LShoulder2Wrist', 
-          'RShoulder2Wrist']].median(axis=1)
+          'RShoulder2Wrist']].mean(axis=1)
     
+    # calculate mean with rolling window
+    # interpolate first
+    body_interp = pd.DataFrame()
+    video_len = box_key['image_id'].max()
+    p_ids = box_key['idx'].unique()
+    for p in p_ids:
+        p_df = box_key[box_key['idx'] == p]
+        if p_df.shape[0] > min_p_len:
+            p_interp = do_interp(p_df, 'image_id', 'body_metric', video_len, interp_kind=interp_type, fill0=False)
+            p_interp['idx'] = p
+            body_interp = pd.concat([body_interp, p_interp])
+
+    body_interp['body_metric_roll'] = body_interp['body_metric'].rolling(window, center=True, min_periods=2).mean()
+    box_key = pd.merge(box_key, body_interp[['image_id', 'idx', 'body_metric_roll']], on=['image_id', 'idx'], how='inner')
+
     for box_col in range(0, 4):
-        box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['body_metric']
+        box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['body_metric_roll']
     
     return box_key
-

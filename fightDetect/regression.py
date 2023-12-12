@@ -4,50 +4,55 @@ import plotly
 import pandas as pd
 import data_process as dp
 import xlwt
+import os
+from datetime import datetime
+import re
 
 
 def draw_3d_reg(reg_df, json_name, segmented=False):
     color_col = 'idx' if segmented else 'score'
     symb_col = 'seg_comb' if segmented else 'idx'
+    output_name = re.sub('[a-zA-Z_.]+', '', json_name)
     # 3d scatter
     fig = px.scatter_3d(reg_df, x='0reg', y='1reg', z='image_id', symbol=symb_col, color=color_col)
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-xy-reg.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-xy-reg.html')
 
     fig = px.scatter_3d(reg_df, x='0', y='1', z='image_id', symbol=symb_col, color=color_col)
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-xy.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-xy.html')
 
 
 def draw_2d_reg(reg_df, json_name, segmented=False):
     subplot_row_x = 'segx' if segmented else None
     subplot_row_y = 'segy' if segmented else None
+    output_name = re.sub('[a-zA-Z_.]+', '', json_name)
     reg_df.sort_values(by=['idx', 'image_id'], axis=0, inplace=True)
 
     # 2d line
     fig = px.line(reg_df, x='image_id', y='0reg', facet_col='idx', facet_row=subplot_row_x)
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-x-reg.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-x-reg.html')
 
     fig = px.line(reg_df, x='image_id', y='0', facet_col='idx', facet_row=subplot_row_x)
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-x.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-x.html')
 
     fig = px.line(reg_df, x='image_id', y='1reg', facet_col='idx', facet_row=subplot_row_y)
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-y-reg.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-y-reg.html')
 
     fig = px.line(reg_df, x='image_id', y='1', facet_col='idx', facet_row=subplot_row_y)
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + json_name + '-y.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-y.html')
 
 
 def draw_statis(res_df):
     df_draw = res_df.copy(deep=True)
     df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
 
-    fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='box', marginal_y='box', hover_name='file')
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-scatter.html')
+    fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='violin', marginal_y='violin', hover_name='file')
+    plotly.offline.plot(fig, filename=output_dir + 'statis-scatter.html')
     
     fig = px.histogram(df_draw, x='var_x', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-x-hist.html')
+    plotly.offline.plot(fig, filename=output_dir + 'statis-x-hist.html')
 
     fig = px.histogram(df_draw, x='var_y', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-y-hist.html')
+    plotly.offline.plot(fig, filename=output_dir + 'statis-y-hist.html')
 
 
 def abs_mean(x):
@@ -127,9 +132,12 @@ def start_location_reg(norm=False):
 
         # normalize the x, y location data
         if norm:
-            high_score = dp.xy_normalize(high_score, keys)
+            high_score = dp.xy_normalize(high_score, keys, window=rolling_window_frame)
             for box_col in range(0, 4):
                 high_score[str(box_col)] = high_score[str(box_col) + 'norm']
+
+        fig = px.line(high_score, x='image_id', y='body_metric_roll', facet_col='idx')
+        plotly.offline.plot(fig, filename=output_dir + re.sub('[a-zA-Z_.]+', '', fname) + '-metric_roll.html')
 
         xy_seg = do_tree_seg(high_score, max_segment_num, segment_reg_deg, 
                              min_len=valid_min_frame, interp_type=interp_method)
@@ -144,7 +152,7 @@ def start_location_reg(norm=False):
 
         xy_diff = cal_reg_diff(xy_seg, high_score, fname)
         statis_res = pd.concat([statis_res, xy_diff], axis=0)
-    statis_res.to_excel('statis_res' + output_suffix + '.xlsx')
+    statis_res.to_excel(output_dir + 'statis_res.xlsx')
     draw_statis(statis_res)
 
 
@@ -172,19 +180,15 @@ def start_iou_reg():
 
             iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
             iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
-    iou_statis_res.to_excel('iou_statis_res' + output_suffix + '.xlsx')
+    iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
     iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
     fig = px.histogram(iou_statis_res, x='var', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + 'statis-iou-hist.html')
+    plotly.offline.plot(fig, filename=output_dir + 'statis-iou-hist.html')
 
 
-src_dir = "test-single/"
-# iou_type = 'giou'
+src_dir = "test-plus/"
 score_thre = 2.6
-# interp_type = 'previous'
 linear = False
-output_suffix = '-reg=' + str(linear) + \
-    '-score-thre=' + str(score_thre)
 max_segment_num = 5
 segment_reg_deg = 2
 valid_min_frame = 10
@@ -193,9 +197,20 @@ valid_min_frame = 10
 interp_method = 'previous'
 iou_type = 'giou'
 normalization = True
+rolling_window_frame = 500
+
+output_suffix = '-roll_window=' + str(rolling_window_frame) + \
+    '-score_thre=' + str(score_thre) + \
+    '-seg_num=' + str(max_segment_num) + \
+    '-reg_deg=' + str(segment_reg_deg) + \
+    '-normalization=' + str(normalization)
+output_dir = 'fightDetect/fig/' + src_dir +  \
+    datetime.now().strftime("%Y-%m-%d.%H-%M-%S") + \
+    output_suffix + '/'
 
 
 if __name__ == '__main__':
+    os.makedirs(output_dir, exist_ok=True)
     start_location_reg(norm=normalization)
     # start_iou_reg()
 
