@@ -16,10 +16,10 @@ def draw_3d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
     output_name = output_name + '-' + xy_cols[0][0: xy_cols[0].rfind('x') - 1] +'-xy'
     # 3d scatter
     fig = px.scatter_3d(reg_df, x=xy_cols[0]+'reg', y=xy_cols[1]+'reg', z='image_id', symbol=symb_col, color=color_col)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-reg.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-reg.html', auto_open=False)
 
     fig = px.scatter_3d(reg_df, x=xy_cols[0], y=xy_cols[1], z='image_id', symbol=symb_col, color=color_col)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '.html', auto_open=False)
 
 
 def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
@@ -30,16 +30,16 @@ def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
 
     # 2d line
     fig = px.line(reg_df, x='image_id', y=xy_cols[0]+'reg', facet_col='idx', facet_row=subplot_row_x)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[0] + '-reg.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[0] + '-reg.html', auto_open=False)
 
     fig = px.line(reg_df, x='image_id', y=xy_cols[0], facet_col='idx', facet_row=subplot_row_x)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[0] + '.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[0] + '.html', auto_open=False)
 
     fig = px.line(reg_df, x='image_id', y=xy_cols[1]+'reg', facet_col='idx', facet_row=subplot_row_y)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[1] + '-reg.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[1] + '-reg.html', auto_open=False)
 
     fig = px.line(reg_df, x='image_id', y=xy_cols[1], facet_col='idx', facet_row=subplot_row_y)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[1] + '.html')
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[1] + '.html', auto_open=False)
 
 
 def draw_statis(res_df):
@@ -47,13 +47,13 @@ def draw_statis(res_df):
     df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
 
     fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='box', marginal_y='box', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-scatter.html')
+    plotly.offline.plot(fig, filename=output_dir + 'statis-scatter.html', auto_open=False)
     
     fig = px.histogram(df_draw, x='var_x', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-x-hist.html')
+    plotly.offline.plot(fig, filename=output_dir + 'statis-x-hist.html', auto_open=False)
 
     fig = px.histogram(df_draw, x='var_y', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-y-hist.html')
+    plotly.offline.plot(fig, filename=output_dir + 'statis-y-hist.html', auto_open=False)
 
 
 def abs_mean(x):
@@ -77,7 +77,10 @@ def do_tree_seg(box_df, max_seg, reg_deg, min_len=10, interp_type='linear', xy_c
                             min_len=min_len, interp_type=interp_type, xy_col=xy_col)
     y_seg_df = dp.tree_seg(box_df, xy_col[1], max_seg=max_seg, reg_deg=reg_deg,
                             min_len=min_len, interp_type=interp_type, xy_col=xy_col)
-    return pd.merge(x_seg_df, y_seg_df, on=['image_id', 'idx'], how='inner', suffixes=['x', 'y'])
+    if x_seg_df.shape[0] > min_len and y_seg_df.shape[0] > min_len:
+        return pd.merge(x_seg_df, y_seg_df, on=['image_id', 'idx'], how='inner', suffixes=['x', 'y'])
+    else:
+        return None
 
 
 # merge regression results with orininal box data
@@ -206,37 +209,40 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
     feature_xy = do_tree_seg(temp_df, max_segment_num, segment_reg_deg, 
                         min_len=valid_min_frame, interp_type=interp_method, 
                         xy_col=[feature_name + '_x', feature_name + '_y'])
-    feature_xy = valid_merge(feature_xy, temp_df, inner=True, id_col='idx')
-    feature_xy = rename_seg(feature_xy)
-    
-    draw_3d_reg(feature_xy, json_name, segmented=True, 
-                xy_cols=[feature_name + '_x', feature_name + '_y'])
-    draw_2d_reg(feature_xy, json_name, segmented=True, 
-                xy_cols=[feature_name + '_x', feature_name + '_y'])
-    
-    feature_diff = cal_reg_diff(feature_xy, temp_df[['image_id', 'idx']], json_name, 
-                xy_cols=[feature_name + '_x', feature_name + '_y'])
-    
-    # calculate the speed of vector changes
-    raw_sorted = temp_df.sort_values(by=['idx', 'image_id'])
-    vector_speed = raw_sorted.groupby('idx').diff().fillna(0.)
-    vector_speed[feature_name + '_speed'] = np.sqrt(vector_speed[feature_name + '_x']**2 + \
-        vector_speed[feature_name + '_y']**2) / vector_speed['image_id']
-    vector_speed = pd.concat([vector_speed[[feature_name + '_speed']], raw_sorted[['image_id', 'idx']]], axis=1)
-    
-    # to keep the 'tree_seg' function compatible, copy a column called 'scalar'
-    vector_speed['scalar'] = vector_speed[feature_name + '_speed']
-    vector_speed = vector_speed.dropna(subset=['scalar'], axis=0)
-    speed_seg = dp.tree_seg(vector_speed, 'scalar', max_seg=max_segment_num, reg_deg=segment_reg_deg,
-                                min_len=valid_min_frame, interp_type=interp_method)
-    speed_diff = cal_reg_diff(speed_seg, vector_speed[['image_id', 'idx', 'scalar']], json_name, data_type='scalar')
+    if feature_xy.shape[0] > valid_min_frame:
+        feature_xy = valid_merge(feature_xy, temp_df, inner=True, id_col='idx')
+        feature_xy = rename_seg(feature_xy)
+        
+        draw_3d_reg(feature_xy, json_name, segmented=True, 
+                    xy_cols=[feature_name + '_x', feature_name + '_y'])
+        draw_2d_reg(feature_xy, json_name, segmented=True, 
+                    xy_cols=[feature_name + '_x', feature_name + '_y'])
+        
+        feature_diff = cal_reg_diff(feature_xy, temp_df[['image_id', 'idx']], json_name, 
+                    xy_cols=[feature_name + '_x', feature_name + '_y'])
+        
+        # calculate the speed of vector changes
+        raw_sorted = temp_df.sort_values(by=['idx', 'image_id'])
+        vector_speed = raw_sorted.groupby('idx').diff().fillna(0.)
+        vector_speed[feature_name + '_speed'] = np.sqrt(vector_speed[feature_name + '_x']**2 + \
+            vector_speed[feature_name + '_y']**2) / vector_speed['image_id']
+        vector_speed = pd.concat([vector_speed[[feature_name + '_speed']], raw_sorted[['image_id', 'idx']]], axis=1)
+        
+        # to keep the 'tree_seg' function compatible, copy a column called 'scalar'
+        vector_speed['scalar'] = vector_speed[feature_name + '_speed']
+        vector_speed = vector_speed.dropna(subset=['scalar'], axis=0)
+        speed_seg = dp.tree_seg(vector_speed, 'scalar', max_seg=max_segment_num, reg_deg=segment_reg_deg,
+                                    min_len=valid_min_frame, interp_type=interp_method)
+        speed_diff = cal_reg_diff(speed_seg, vector_speed[['image_id', 'idx', 'scalar']], json_name, data_type='scalar')
 
-    return [pd.concat([res_df[0], feature_diff], axis=0),
-            pd.concat([res_df[1], speed_diff], axis=0)]
+        return [pd.concat([res_df[0], feature_diff], axis=0),
+                pd.concat([res_df[1], speed_diff], axis=0)]
+    return res_df
 
 
 # do segmentation and regression based on keypoints data of a person
 def start_key_reg():
+    print('starting regression on keypoints data')
     # left/right arm: x, y location vectors relative to shoulders
     # key 5 left shoulder 9 left wrist
     # key 6 left shoulder 10 left wrist
@@ -251,6 +257,7 @@ def start_key_reg():
         vector_res[k] = [pd.DataFrame(), pd.DataFrame()]
 
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
+        print('processing file ' + fname)
         # calculate the speed
         # speed = dp.key_speed(keys)
         # drop data with lower scores
@@ -269,7 +276,7 @@ def start_key_reg():
         v[1].to_excel(output_dir + k + '_statis_speed_res.xlsx')
         v[1]['cat'] = v[1]['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
         fig = px.histogram(v[1], x='var', color='cat', marginal='rug', hover_name='file')
-        plotly.offline.plot(fig, filename=output_dir + k + '_statis_speed_hist.html')
+        plotly.offline.plot(fig, filename=output_dir + k + '_statis_speed_hist.html', auto_open=False)
 
         # # key 6 left shoulder 10 left wrist
 
@@ -306,7 +313,7 @@ def start_key_reg():
 
 
 # args
-src_dir = "test-single/"
+src_dir = "normal-plus/"
 score_thre = 2.6
 linear = False
 max_segment_num = 5
