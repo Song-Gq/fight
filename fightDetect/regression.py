@@ -146,6 +146,8 @@ def start_location_reg(norm=False):
     statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         print('processing file ' + fname)
+        if keys is None or boxes is None:
+            continue
         # drop data with lower scores
         # using higher threshold here
         high_score = boxes[boxes['score'] > score_thre]

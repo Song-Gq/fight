@@ -14,6 +14,9 @@ from sklearn.tree import DecisionTreeRegressor
 def gen_key_df(json_dir):
     df = pd.read_json(json_dir)
     # split the column of <list> 'keypoints' into multiple cols
+    # empty dataframe
+    if df.shape[0] == 0:
+        return None
     keys = pd.DataFrame(df.keypoints.tolist(), index=df.index)
     keys.columns = keys.columns.map(str)
     keys = pd.concat([df, keys], axis=1)
@@ -24,6 +27,9 @@ def gen_key_df(json_dir):
 def gen_box_df(json_dir):
     df = pd.read_json(json_dir)
     # split the column of <list> 'box'
+        # empty dataframe
+    if df.shape[0] == 0:
+        return None
     boxes = pd.DataFrame(df.box.tolist(), index=df.index)
     boxes.columns = boxes.columns.map(str)
     boxes = pd.concat([df, boxes], axis=1)
