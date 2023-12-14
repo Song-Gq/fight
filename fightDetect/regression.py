@@ -139,8 +139,10 @@ def rename_seg(seg_df):
 
 # do segmentation and regression based on x, y location data of a person
 def start_location_reg(norm=False):
+    print('starting regression on location data')
     statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
+        print('processing file ' + fname)
         # drop data with lower scores
         # using higher threshold here
         high_score = boxes[boxes['score'] > score_thre]
@@ -156,22 +158,25 @@ def start_location_reg(norm=False):
 
         xy_seg = do_tree_seg(high_score, max_segment_num, segment_reg_deg, 
                              min_len=valid_min_frame, interp_type=interp_method)
-        reg_res = valid_merge(xy_seg, high_score, inner=True)
-        reg_res = rename_seg(reg_res)
+        if xy_seg is not None:
+            reg_res = valid_merge(xy_seg, high_score, inner=True)
+            reg_res = rename_seg(reg_res)
 
-        draw_3d_reg(reg_res, fname, segmented=True)
-        draw_2d_reg(reg_res, fname, segmented=True)
+            draw_3d_reg(reg_res, fname, segmented=True)
+            draw_2d_reg(reg_res, fname, segmented=True)
 
-        xy_diff = cal_reg_diff(xy_seg, high_score, fname)
-        statis_res = pd.concat([statis_res, xy_diff], axis=0)
+            xy_diff = cal_reg_diff(xy_seg, high_score, fname)
+            statis_res = pd.concat([statis_res, xy_diff], axis=0)
     statis_res.to_excel(output_dir + 'statis_res.xlsx')
     draw_statis(statis_res)
 
 
 # do segmentation and regression based on iou data of a combination of persons
 def start_iou_reg():
+    print('starting regression on iou data')
     iou_statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
+        print('processing file ' + fname)
         # drop data with lower scores
         # using higher threshold here
         high_score = boxes[boxes['score'] > score_thre]
@@ -313,18 +318,18 @@ def start_key_reg():
 
 
 # args
-src_dir = "normal-plus/"
-score_thre = 2.6
+src_dir = "sur/nofi/"
+score_thre = 1.5
 linear = False
-max_segment_num = 5
+max_segment_num = 2
 segment_reg_deg = 2
-valid_min_frame = 10
+valid_min_frame = 1
 # for x, y location segmentation and regression
 # and for calculating iou
 interp_method = 'previous'
 iou_type = 'giou'
 normalization = True
-rolling_window_frame = 500
+rolling_window_frame = 10
 
 
 output_suffix = '-roll_window=' + str(rolling_window_frame) + \
@@ -340,6 +345,6 @@ output_dir = 'fightDetect/fig/' + src_dir +  \
 if __name__ == '__main__':
     os.makedirs(output_dir, exist_ok=True)
 
-    # start_location_reg(norm=normalization)
-    # start_iou_reg()
+    start_location_reg(norm=normalization)
+    start_iou_reg()
     start_key_reg()

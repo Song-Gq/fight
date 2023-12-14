@@ -340,63 +340,64 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
                 xy_interp = p_df
             # scalar data like speed. needs interpolation
             elif val_col == 'scalar':
-                xy_interp = do_interp(p_df, 'image_id', val_col, video_len, interp_type, fill0=False)
+                xy_interp = do_interp(p_df, 'image_id', val_col, video_len, interp_type, fill0=False, min_p_len=min_len)
             else:
                 # do interpolation
                 # the x, y here represent the axes in the video frame
                 # 0 is not filled in the front and end of the time series
-                x_interp = do_interp(p_df, 'image_id', xy_col[0], video_len, interp_type, fill0=False)
-                y_interp = do_interp(p_df, 'image_id', xy_col[1], video_len, interp_type, fill0=False)
+                x_interp = do_interp(p_df, 'image_id', xy_col[0], video_len, interp_type, fill0=False, min_p_len=min_len)
+                y_interp = do_interp(p_df, 'image_id', xy_col[1], video_len, interp_type, fill0=False, min_p_len=min_len)
                 xy_interp = pd.merge(x_interp, y_interp, on='image_id', how='inner')
                 xy_interp.fillna(0, inplace=True)
                 
             # the x, y here represent frame number and value seperately
-            x = xy_interp['image_id'].values
-            y = xy_interp[val_col].values
-            # calculate the gradient of y
-            dy = np.gradient(y, x)
+            if xy_interp is not None:
+                x = xy_interp['image_id'].values
+                y = xy_interp[val_col].values
+                # calculate the gradient of y
+                dy = np.gradient(y, x)
 
-            tree = DecisionTreeRegressor(max_leaf_nodes=max_seg)
-            tree.fit(x.reshape(-1, 1), dy.reshape(-1, 1))
-            dy_pred = tree.predict(x.reshape(-1, 1))
+                tree = DecisionTreeRegressor(max_leaf_nodes=max_seg)
+                tree.fit(x.reshape(-1, 1), dy.reshape(-1, 1))
+                dy_pred = tree.predict(x.reshape(-1, 1))
 
-            # iter the segments by decision trees
-            seg_idx = 0
-            for seg_val in np.unique(dy_pred):
-                msk = dy_pred == seg_val
-                x_seg = x[msk].reshape(-1, 1)
-                y_seg = y[msk].reshape(-1, 1)
+                # iter the segments by decision trees
+                seg_idx = 0
+                for seg_val in np.unique(dy_pred):
+                    msk = dy_pred == seg_val
+                    x_seg = x[msk].reshape(-1, 1)
+                    y_seg = y[msk].reshape(-1, 1)
 
-                # drop segments that is too short
-                if x_seg.shape[0] > min_len:
-                    seg_start = int(x_seg.min())
-                    seg_end = int(x_seg.max())
-                    seg_len = seg_end - seg_start + 1
+                    # drop segments that is too short
+                    if x_seg.shape[0] > min_len:
+                        seg_start = int(x_seg.min())
+                        seg_end = int(x_seg.max())
+                        seg_len = seg_end - seg_start + 1
 
-                    # using polynomial regression to fit every segment
-                    pf = PolynomialFeatures(degree=reg_deg)
-                    x_poly = pf.fit_transform(x_seg)
-                    
-                    lr = LinearRegression()
-                    lr.fit(x_poly, y_seg)
+                        # using polynomial regression to fit every segment
+                        pf = PolynomialFeatures(degree=reg_deg)
+                        x_poly = pf.fit_transform(x_seg)
+                        
+                        lr = LinearRegression()
+                        lr.fit(x_poly, y_seg)
 
-                    xx_seg = np.linspace(seg_start, seg_end, seg_len)
-                    xx_poly = pf.transform(xx_seg.reshape(-1, 1))
-                    yy_poly = lr.predict(xx_poly)
+                        xx_seg = np.linspace(seg_start, seg_end, seg_len)
+                        xx_poly = pf.transform(xx_seg.reshape(-1, 1))
+                        yy_poly = lr.predict(xx_poly)
 
-                    seg_res = pd.DataFrame()
-                    seg_res['image_id'] = xx_seg
-                    seg_res[val_col + 'reg'] = yy_poly
-                    seg_res[id_col] = p
-                    seg_res['seg'] = seg_idx
-                    # seg_res['seg'] = val_col + '+' + str(seg_idx)
-                    # if val_col == '0':
-                    #     seg_res['x_seg'] = seg_idx
-                    # else:
-                    #     seg_res['y_seg'] = seg_idx
+                        seg_res = pd.DataFrame()
+                        seg_res['image_id'] = xx_seg
+                        seg_res[val_col + 'reg'] = yy_poly
+                        seg_res[id_col] = p
+                        seg_res['seg'] = seg_idx
+                        # seg_res['seg'] = val_col + '+' + str(seg_idx)
+                        # if val_col == '0':
+                        #     seg_res['x_seg'] = seg_idx
+                        # else:
+                        #     seg_res['y_seg'] = seg_idx
 
-                    res_df = pd.concat([res_df, seg_res])
-                seg_idx = seg_idx + 1
+                        res_df = pd.concat([res_df, seg_res])
+                    seg_idx = seg_idx + 1
     return res_df
 
 
