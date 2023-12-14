@@ -208,7 +208,7 @@ def start_iou_reg():
     # iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
     iou_statis_res['cat'] = iou_statis_res['file'].str.replace('^(AlphaPose_)|(\.json)$', '', regex=True)
     fig = px.histogram(iou_statis_res, x='var', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-iou-hist.html')
+    plotly.offline.plot(fig, filename=output_dir + 'statis-iou-hist.html', auto_open=False)
 
 
 # for keypoint features where the data are like x, y location vectors
@@ -246,6 +246,9 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
         vector_speed = vector_speed.dropna(subset=['scalar'], axis=0)
         speed_seg = dp.tree_seg(vector_speed, 'scalar', max_seg=max_segment_num, reg_deg=segment_reg_deg,
                                     min_len=valid_min_frame, interp_type=interp_method)
+        # empty dataframe
+        if speed_seg.shape[0] == 0:
+            return res_df
         speed_diff = cal_reg_diff(speed_seg, vector_speed[['image_id', 'idx', 'scalar']], json_name, data_type='scalar')
 
         return [pd.concat([res_df[0], feature_diff], axis=0),
