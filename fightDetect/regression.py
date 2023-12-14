@@ -12,7 +12,8 @@ import re
 def draw_3d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
     color_col = 'idx' if segmented else 'score'
     symb_col = 'seg_comb' if segmented else 'idx'
-    output_name = re.sub('[a-zA-Z_.]+', '', json_name)
+    # output_name = re.sub('[a-zA-Z_.]+', '', json_name)
+    output_name = re.sub('^(AlphaPose_)|(\.json)$', '', json_name)
     output_name = output_name + '-' + xy_cols[0][0: xy_cols[0].rfind('x') - 1] +'-xy'
     # 3d scatter
     fig = px.scatter_3d(reg_df, x=xy_cols[0]+'reg', y=xy_cols[1]+'reg', z='image_id', symbol=symb_col, color=color_col)
@@ -25,7 +26,8 @@ def draw_3d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
 def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
     subplot_row_x = 'segx' if segmented else None
     subplot_row_y = 'segy' if segmented else None
-    output_name = re.sub('[a-zA-Z_.]+', '', json_name)
+    # output_name = re.sub('[a-zA-Z_.]+', '', json_name)
+    output_name = re.sub('^(AlphaPose_)|(\.json)$', '', json_name)
     reg_df.sort_values(by=['idx', 'image_id'], axis=0, inplace=True)
 
     # 2d line
@@ -44,7 +46,8 @@ def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
 
 def draw_statis(res_df):
     df_draw = res_df.copy(deep=True)
-    df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
+    # df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
+    df_draw['cat'] = df_draw['file'].str.replace('^(AlphaPose_)|(\.json)$', '', regex=True)
 
     fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='box', marginal_y='box', hover_name='file')
     plotly.offline.plot(fig, filename=output_dir + 'statis-scatter.html', auto_open=False)
@@ -198,7 +201,8 @@ def start_iou_reg():
             iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
             iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
     iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
-    iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
+    # iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
+    iou_statis_res['cat'] = iou_statis_res['file'].str.replace('^(AlphaPose_)|(\.json)$', '', regex=True)
     fig = px.histogram(iou_statis_res, x='var', color='cat', marginal='rug', hover_name='file')
     plotly.offline.plot(fig, filename=output_dir + 'statis-iou-hist.html')
 
@@ -279,7 +283,8 @@ def start_key_reg():
         draw_statis(v[0])
 
         v[1].to_excel(output_dir + k + '_statis_speed_res.xlsx')
-        v[1]['cat'] = v[1]['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
+        # v[1]['cat'] = v[1]['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
+        v[1]['cat'] = v[1]['file'].str.replace('^(AlphaPose_)|(\.json)$', '', regex=True)
         fig = px.histogram(v[1], x='var', color='cat', marginal='rug', hover_name='file')
         plotly.offline.plot(fig, filename=output_dir + k + '_statis_speed_hist.html', auto_open=False)
 
