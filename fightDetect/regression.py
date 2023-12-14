@@ -179,6 +179,8 @@ def start_iou_reg():
     iou_statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         print('processing file ' + fname)
+        if keys is None or boxes is None:
+            continue
         # drop data with lower scores
         # using higher threshold here
         high_score = boxes[boxes['score'] > score_thre]
@@ -265,6 +267,8 @@ def start_key_reg():
 
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         print('processing file ' + fname)
+        if keys is None or boxes is None:
+            continue
         # calculate the speed
         # speed = dp.key_speed(keys)
         # drop data with lower scores
