@@ -44,19 +44,19 @@ def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
     plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[1] + '.html', auto_open=False)
 
 
-def draw_statis(res_df):
+def draw_statis(res_df, output_name):
     df_draw = res_df.copy(deep=True)
     # df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-    df_draw['cat'] = df_draw['file'].str.replace('^(AlphaPose_)|(\.json)$', '', regex=True)
+    df_draw['cat'] = df_draw['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
 
     fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='box', marginal_y='box', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-scatter.html', auto_open=False)
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-statis-scatter.html', auto_open=False)
     
     fig = px.histogram(df_draw, x='var_x', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-x-hist.html', auto_open=False)
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-statis-x-hist.html', auto_open=False)
 
     fig = px.histogram(df_draw, x='var_y', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-y-hist.html', auto_open=False)
+    plotly.offline.plot(fig, filename=output_dir + output_name + '-statis-y-hist.html', auto_open=False)
 
 
 def abs_mean(x):
@@ -173,7 +173,7 @@ def start_location_reg(norm=False):
             xy_diff = cal_reg_diff(xy_seg, high_score, fname)
             statis_res = pd.concat([statis_res, xy_diff], axis=0)
     statis_res.to_excel(output_dir + 'statis_res.xlsx')
-    draw_statis(statis_res)
+    draw_statis(statis_res, 'location')
 
 
 # do segmentation and regression based on iou data of a combination of persons
@@ -206,7 +206,7 @@ def start_iou_reg():
             iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
     iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
     # iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-    iou_statis_res['cat'] = iou_statis_res['file'].str.replace('^(AlphaPose_)|(\.json)$', '', regex=True)
+    iou_statis_res['cat'] = iou_statis_res['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
     fig = px.histogram(iou_statis_res, x='var', color='cat', marginal='rug', hover_name='file')
     plotly.offline.plot(fig, filename=output_dir + 'statis-iou-hist.html', auto_open=False)
 
@@ -289,11 +289,11 @@ def start_key_reg():
     
     for k, v in vector_res.items():
         v[0].to_excel(output_dir + k + '_statis_res.xlsx')
-        draw_statis(v[0])
+        draw_statis(v[0], k)
 
         v[1].to_excel(output_dir + k + '_statis_speed_res.xlsx')
         # v[1]['cat'] = v[1]['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-        v[1]['cat'] = v[1]['file'].str.replace('^(AlphaPose_)|(\.json)$', '', regex=True)
+        v[1]['cat'] = v[1]['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
         fig = px.histogram(v[1], x='var', color='cat', marginal='rug', hover_name='file')
         plotly.offline.plot(fig, filename=output_dir + k + '_statis_speed_hist.html', auto_open=False)
 
@@ -332,25 +332,26 @@ def start_key_reg():
 
 
 # args
-src_dir = "sur/nofi/"
-score_thre = 1.5
+src_dir = "normal-plus/"
+score_thre = 2.6
 linear = False
-max_segment_num = 2
+max_segment_num = 5
 segment_reg_deg = 2
-valid_min_frame = 1
+valid_min_frame = 30
 # for x, y location segmentation and regression
 # and for calculating iou
 interp_method = 'previous'
 iou_type = 'giou'
 normalization = True
-rolling_window_frame = 10
+rolling_window_frame = 100
 
 
 output_suffix = '-roll_window=' + str(rolling_window_frame) + \
     '-score_thre=' + str(score_thre) + \
     '-seg_num=' + str(max_segment_num) + \
     '-reg_deg=' + str(segment_reg_deg) + \
-    '-normalization=' + str(normalization)
+    '-normalization=' + str(normalization) + \
+    '-valid_minf=' + str(valid_min_frame)
 output_dir = 'fightDetect/fig/' + src_dir +  \
     datetime.now().strftime("%Y-%m-%d.%H-%M-%S") + \
     output_suffix + '/'
