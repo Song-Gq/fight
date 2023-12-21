@@ -407,12 +407,8 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
     return res_df
 
 
-def xy_normalize(box_df, key_df, window=10, interp_type='linear', min_p_len=10):
-    # box points: 0-3
-    # keypoints: 0k-3k, 5-77
-    box_key = pd.merge(
-        box_df, key_df, on=['image_id', 'idx'], 
-        how='inner', suffixes=['', 'k'])
+def cal_metric(box_key_df):
+    box_key = box_key_df.copy()
     # key 18 Neck 19 Hip
     box_key['Neck2Hip_x'] = np.abs(box_key['54'] - box_key['57'])
     box_key['Neck2Hip_y'] = np.abs(box_key['55'] - box_key['58'])
@@ -439,6 +435,50 @@ def xy_normalize(box_df, key_df, window=10, interp_type='linear', min_p_len=10):
     for candi in candidate_cols:
         box_key[candi].replace(0, np.nan, inplace=True)
     box_key['body_metric'] = box_key[candidate_cols].mean(axis=1)
+
+    # use mean metric of a detected person
+    p_ids = box_key['idx'].unique()
+    for p in p_ids:
+        p_df = box_key[box_key['idx'] == p]
+        p_metric = p_df['body_metric'].mean()
+        box_key.loc[box_key['idx'] == p, 'p_metric'] = p_metric
+
+    return box_key
+
+
+def xy_normalize(box_df, key_df, window=10, interp_type='linear', min_p_len=10):
+    # box points: 0-3
+    # keypoints: 0k-3k, 5-77
+    box_key = pd.merge(
+        box_df, key_df, on=['image_id', 'idx'], 
+        how='inner', suffixes=['', 'k'])
+    box_key = cal_metric(box_key)
+    # # key 18 Neck 19 Hip
+    # box_key['Neck2Hip_x'] = np.abs(box_key['54'] - box_key['57'])
+    # box_key['Neck2Hip_y'] = np.abs(box_key['55'] - box_key['58'])
+    # box_key['Neck2Hip'] = np.sqrt(box_key['Neck2Hip_x']**2 + box_key['Neck2Hip_y']**2)
+    # # key 11 Left Hip 15 Left Ankle
+    # box_key['LHip2Ankle_x'] = np.abs(box_key['33'] - box_key['45'])
+    # box_key['LHip2Ankle_y'] = np.abs(box_key['34'] - box_key['46'])
+    # box_key['LHip2Ankle'] = np.sqrt(box_key['LHip2Ankle_x']**2 + box_key['LHip2Ankle_y']**2)
+    # # key 12 Right Hip 16 Left Ankle
+    # box_key['RHip2Ankle_x'] = np.abs(box_key['36'] - box_key['48'])
+    # box_key['RHip2Ankle_y'] = np.abs(box_key['37'] - box_key['49'])
+    # box_key['RHip2Ankle'] = np.sqrt(box_key['RHip2Ankle_x']**2 + box_key['RHip2Ankle_y']**2)
+    # # key 5 Left Shoulder 9 Left Wrist
+    # box_key['LShoulder2Wrist_x'] = np.abs(box_key['15'] - box_key['27'])
+    # box_key['LShoulder2Wrist_y'] = np.abs(box_key['16'] - box_key['28'])
+    # box_key['LShoulder2Wrist'] = np.sqrt(box_key['LShoulder2Wrist_x']**2 + box_key['LShoulder2Wrist_y']**2)
+    # # key 6 Right Shoulder 10 Right Wrist
+    # box_key['RShoulder2Wrist_x'] = np.abs(box_key['18'] - box_key['30'])
+    # box_key['RShoulder2Wrist_y'] = np.abs(box_key['19'] - box_key['31'])
+    # box_key['RShoulder2Wrist'] = np.sqrt(box_key['RShoulder2Wrist_x']**2 + box_key['RShoulder2Wrist_y']**2)
+
+    # candidate_cols = ['Neck2Hip', 'LHip2Ankle', 'RHip2Ankle', 'LShoulder2Wrist', 'RShoulder2Wrist']
+    # # candidate_cols = ['Neck2Hip']
+    # for candi in candidate_cols:
+    #     box_key[candi].replace(0, np.nan, inplace=True)
+    # box_key['body_metric'] = box_key[candidate_cols].mean(axis=1)
     
     # # calculate mean with rolling window
     # # interpolate first
@@ -458,9 +498,28 @@ def xy_normalize(box_df, key_df, window=10, interp_type='linear', min_p_len=10):
     # for box_col in range(0, 4):
     #     box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['body_metric_roll']
 
-    # check if vid_metric is a scalar!!!
-    vid_metric = box_key['body_metric'].mean()
+    # use mean metric of a whole video
+    # vid_metric = box_key['body_metric'].mean()
+    # for box_col in range(0, 4):
+    #     box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / vid_metric
+
+    # # use mean metric of a detected person
+    # p_ids = box_key['idx'].unique()
+    # for p in p_ids:
+    #     p_df = box_key[box_key['idx'] == p]
+    #     p_metric = p_df['body_metric'].mean()
+    #     box_key.loc[box_key['idx'] == p, 'p_metric'] = p_metric
+
     for box_col in range(0, 4):
-        box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / vid_metric
+        box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['p_metric']
+    
+    return box_key
+
+
+def key_normalize(key_df):
+    box_key = cal_metric(key_df)
+    key_cols = list(range(0, 77, 3)) + list(range(1, 77, 3))
+    for key_col in key_cols:
+        box_key[str(key_col) + 'norm'] = box_key[str(key_col)] / box_key['p_metric']
     
     return box_key
