@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.tree import DecisionTreeRegressor
+from huang_thresholding import HuangThresholding
 
 
 def gen_key_df(json_dir):
@@ -523,3 +524,25 @@ def key_normalize(key_df):
         box_key[str(key_col) + 'norm'] = box_key[str(key_col)] / box_key['p_metric']
     
     return box_key
+
+
+def get_high_score(vid_df, upper_limit=340, min_p_len=10):
+    # data range from [0 to upper_limit/100.0]
+    # histogram bins from [0.00, 0.01) to [3.39, 3.40]
+    histogram_data, _ = np.histogram(vid_df['score'], bins=[b/100.0 for b in range(0, upper_limit+1)])
+    huang_thresholding = HuangThresholding(histogram_data, upper_limit)
+    vid_score_thre = huang_thresholding.find_threshold() / 100.0
+
+    # vid_df['score_thre'] = vid_score_thre
+    # delete detected persons that has a lower confidence
+    p_ids = vid_df['idx'].unique()
+    high_score_p = []
+    for p in p_ids:
+        p_df = vid_df[vid_df['idx'] == p]
+        # data length too short
+        if p_df.shape[0] > min_p_len:
+            # compare the 1/4 quantile of a person's score and the huang_thre
+            p_q1 = p_df['score'].quantile(0.25)
+            if p_q1 > vid_score_thre:
+                high_score_p.append(p)
+    return vid_df[vid_df['idx'] in high_score_p]
