@@ -116,7 +116,7 @@ def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy', xy_cols=['0','1']):
         x_diff_df = diff_df.groupby(['idx'])['x_diff'].agg([abs_mean, 'var']).reset_index()
         y_diff_df = diff_df.groupby(['idx'])['y_diff'].agg([abs_mean, 'var']).reset_index()
         xy_diff_df = pd.merge(x_diff_df, y_diff_df, on='idx', how='outer')
-        xy_diff_df['file'] = file_name
+        xy_diff_df['file'] = re.sub('^(AlphaPose_)|(\.json)$', '', file_name)
         return xy_diff_df
 
     # data_type == 'iou' or 'scalar'
@@ -127,7 +127,7 @@ def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy', xy_cols=['0','1']):
 
     # mean diff
     res_diff_df = diff_df.groupby([id_col])[data_type + '_diff'].agg([abs_mean, 'var']).reset_index()
-    res_diff_df['file'] = file_name
+    res_diff_df['file'] = re.sub('^(AlphaPose_)|(\.json)$', '', file_name)
     return res_diff_df
 
 
@@ -150,29 +150,31 @@ def start_location_reg(norm=False):
             continue
         # drop data with lower scores
         # using higher threshold here
-        high_score = boxes[boxes['score'] > score_thre]
+        # high_score = boxes[boxes['score'] > score_thre]
+        high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=valid_min_frame)
+        if high_score.shape[0] > 0:
+            # normalize the x, y location data
+            if norm:
+                high_score = dp.xy_normalize(high_score, keys, window=rolling_window_frame, min_p_len=valid_min_frame)
+                for box_col in range(0, 4):
+                    high_score[str(box_col)] = high_score[str(box_col) + 'norm']
 
-        # normalize the x, y location data
-        if norm:
-            high_score = dp.xy_normalize(high_score, keys, window=rolling_window_frame, min_p_len=valid_min_frame)
-            for box_col in range(0, 4):
-                high_score[str(box_col)] = high_score[str(box_col) + 'norm']
+            # fig = px.line(high_score, x='image_id', y='body_metric_roll', facet_col='idx')
+            # plotly.offline.plot(fig, filename=output_dir + re.sub('[a-zA-Z_.]+', '', fname) + '-metric_roll.html')
 
-        # fig = px.line(high_score, x='image_id', y='body_metric_roll', facet_col='idx')
-        # plotly.offline.plot(fig, filename=output_dir + re.sub('[a-zA-Z_.]+', '', fname) + '-metric_roll.html')
+            xy_seg = do_tree_seg(high_score, max_segment_num, segment_reg_deg, 
+                                min_len=valid_min_frame, interp_type=interp_method)
+            if xy_seg is not None:
+                reg_res = valid_merge(xy_seg, high_score, inner=True)
+                reg_res = rename_seg(reg_res)
 
-        xy_seg = do_tree_seg(high_score, max_segment_num, segment_reg_deg, 
-                             min_len=valid_min_frame, interp_type=interp_method)
-        if xy_seg is not None:
-            reg_res = valid_merge(xy_seg, high_score, inner=True)
-            reg_res = rename_seg(reg_res)
+                draw_3d_reg(reg_res, fname, segmented=True)
+                draw_2d_reg(reg_res, fname, segmented=True)
 
-            draw_3d_reg(reg_res, fname, segmented=True)
-            draw_2d_reg(reg_res, fname, segmented=True)
-
-            xy_diff = cal_reg_diff(xy_seg, high_score, fname)
-            statis_res = pd.concat([statis_res, xy_diff], axis=0)
-    statis_res.to_excel(output_dir + 'statis_res.xlsx')
+                xy_diff = cal_reg_diff(xy_seg, high_score, fname)
+                statis_res = pd.concat([statis_res, xy_diff], axis=0)
+    # statis_res.to_excel(output_dir + 'statis_res.xlsx')
+    statis_res.to_csv(output_dir + 'statis_res.csv')
     draw_statis(statis_res, 'location')
 
 
@@ -186,26 +188,29 @@ def start_iou_reg():
             continue
         # drop data with lower scores
         # using higher threshold here
-        high_score = boxes[boxes['score'] > score_thre]
-        # do segmentation and regression for iou data
-        # fft_df is useless here
-        iou_df, fft_df = dp.comb_iou_fft(
-            high_score, iou_type=iou_type, interp_type=interp_method, fill0=False)
-        if iou_df.shape[0] > valid_min_frame:
-            iou_seg = dp.tree_seg(iou_df, 'iou', max_seg=max_segment_num, reg_deg=segment_reg_deg,
-                                min_len=valid_min_frame, interp_type=interp_method)
-            if iou_seg.shape[0] > valid_min_frame:
-                iou_reg_res = valid_merge(iou_seg, iou_df, inner=True, id_col='comb')
-                
-                # fig = px.line(iou_reg_res, x='image_id', y='ioureg', facet_col='comb', facet_row='seg')
-                # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou-reg.html')
+        # high_score = boxes[boxes['score'] > score_thre]
+        high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=valid_min_frame)
+        if high_score.shape[0] > 0:
+            # do segmentation and regression for iou data
+            # fft_df is useless here
+            iou_df, fft_df = dp.comb_iou_fft(
+                high_score, iou_type=iou_type, interp_type=interp_method, fill0=False)
+            if iou_df.shape[0] > valid_min_frame:
+                iou_seg = dp.tree_seg(iou_df, 'iou', max_seg=max_segment_num, reg_deg=segment_reg_deg,
+                                    min_len=valid_min_frame, interp_type=interp_method)
+                if iou_seg.shape[0] > valid_min_frame:
+                    iou_reg_res = valid_merge(iou_seg, iou_df, inner=True, id_col='comb')
+                    
+                    # fig = px.line(iou_reg_res, x='image_id', y='ioureg', facet_col='comb', facet_row='seg')
+                    # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou-reg.html')
 
-                # fig = px.line(iou_reg_res, x='image_id', y='iou', facet_col='comb', facet_row='seg')
-                # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou.html')
+                    # fig = px.line(iou_reg_res, x='image_id', y='iou', facet_col='comb', facet_row='seg')
+                    # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou.html')
 
-                iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
-                iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
-    iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
+                    iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
+                    iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
+    # iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
+    iou_statis_res.to_csv(output_dir + 'iou_statis_res.csv')
     # iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
     iou_statis_res['cat'] = iou_statis_res['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
     fig = px.histogram(iou_statis_res, x='var', color='cat', marginal='rug', hover_name='file')
@@ -277,23 +282,27 @@ def start_key_reg(norm=False):
         print('processing file ' + fname)
         if keys is None or boxes is None:
             continue
-        high_score = keys[keys['score'] > score_thre]
-        # normalize the x, y location data
-        if norm:
-            high_score = dp.key_normalize(high_score)
-            key_cols = list(range(0, 77, 3)) + list(range(1, 77, 3))
-            for key_col in key_cols:
-                high_score[str(key_col)] = high_score[str(key_col) + 'norm']
+        # high_score = boxes[boxes['score'] > score_thre]
+        high_score = dp.get_high_score(keys, upper_limit=340, min_p_len=valid_min_frame)
+        if high_score.shape[0] > 0:
+            # normalize the x, y location data
+            if norm:
+                high_score = dp.key_normalize(high_score)
+                key_cols = list(range(0, 77, 3)) + list(range(1, 77, 3))
+                for key_col in key_cols:
+                    high_score[str(key_col)] = high_score[str(key_col) + 'norm']
 
-        for k, v in vector_features.items():
-            vector_res[k] = xy_feature_reg(
-                high_score, v, k, vector_res[k], fname)
+            for k, v in vector_features.items():
+                vector_res[k] = xy_feature_reg(
+                    high_score, v, k, vector_res[k], fname)
     
     for k, v in vector_res.items():
-        v[0].to_excel(output_dir + k + '_statis_res.xlsx')
+        # v[0].to_excel(output_dir + k + '_statis_res.xlsx')
+        v[0].to_csv(output_dir + k + '_statis_res.csv')
         draw_statis(v[0], k)
 
-        v[1].to_excel(output_dir + k + '_statis_speed_res.xlsx')
+        # v[1].to_excel(output_dir + k + '_statis_speed_res.xlsx')
+        v[1].to_csv(output_dir + k + '_statis_speed_res.csv')
         # v[1]['cat'] = v[1]['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
         v[1]['cat'] = v[1]['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
         fig = px.histogram(v[1], x='var', color='cat', marginal='rug', hover_name='file')
