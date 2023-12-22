@@ -194,16 +194,17 @@ def start_iou_reg():
         if iou_df.shape[0] > valid_min_frame:
             iou_seg = dp.tree_seg(iou_df, 'iou', max_seg=max_segment_num, reg_deg=segment_reg_deg,
                                 min_len=valid_min_frame, interp_type=interp_method)
-            iou_reg_res = valid_merge(iou_seg, iou_df, inner=True, id_col='comb')
-            
-            # fig = px.line(iou_reg_res, x='image_id', y='ioureg', facet_col='comb', facet_row='seg')
-            # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou-reg.html')
+            if iou_seg.shape[0] > valid_min_frame:
+                iou_reg_res = valid_merge(iou_seg, iou_df, inner=True, id_col='comb')
+                
+                # fig = px.line(iou_reg_res, x='image_id', y='ioureg', facet_col='comb', facet_row='seg')
+                # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou-reg.html')
 
-            # fig = px.line(iou_reg_res, x='image_id', y='iou', facet_col='comb', facet_row='seg')
-            # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou.html')
+                # fig = px.line(iou_reg_res, x='image_id', y='iou', facet_col='comb', facet_row='seg')
+                # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou.html')
 
-            iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
-            iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
+                iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
+                iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
     iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
     # iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
     iou_statis_res['cat'] = iou_statis_res['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
