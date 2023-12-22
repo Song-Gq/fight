@@ -545,4 +545,5 @@ def get_high_score(vid_df, upper_limit=340, min_p_len=10):
             p_q1 = p_df['score'].quantile(0.25)
             if p_q1 > vid_score_thre:
                 high_score_p.append(p)
-    return vid_df[vid_df['idx'] in high_score_p]
+    vid_df['score_thre'] = vid_score_thre
+    return vid_df[vid_df['idx'].isin(high_score_p)]

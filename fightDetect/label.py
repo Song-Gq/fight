@@ -13,15 +13,18 @@ def vid_statis():
     vid_label = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=valid_min_frame)
-        # high_score = boxes[boxes['score'] > score_thre]
-        file_res = high_score.groupby(['idx'])['image_id'].agg(['min', 'max', 'count'])
-        file_res = file_res[file_res['count'] > valid_min_frame]
-        
-        score = high_score.groupby(['idx'])['score'].agg(['min', 'max', 'mean'])
-        file_res = pd.merge(file_res, score, how='inner', on=['idx'])
+        if high_score.shape[0] > 0:
+            score_thre = high_score['score_thre'].values[0]
+            # high_score = boxes[boxes['score'] > score_thre]
+            file_res = high_score.groupby(['idx'])['image_id'].agg(['min', 'max', 'count'])
+            file_res = file_res[file_res['count'] > valid_min_frame]
+            
+            score = high_score.groupby(['idx'])['score'].agg(['min', 'max', 'mean'])
+            file_res = pd.merge(file_res, score, how='inner', on=['idx'], suffixes=['frame', 'score'])
 
-        file_res['file'] = re.sub('^(AlphaPose_)|(\.json)$', '', fname)
-        vid_label = pd.concat([vid_label, file_res], axis=0)
+            file_res['file'] = re.sub('^(AlphaPose_)|(\.json)$', '', fname)
+            file_res['score_thre'] = score_thre
+            vid_label = pd.concat([vid_label, file_res], axis=0)
     return vid_label
 
 
@@ -36,6 +39,7 @@ def draw_score():
     plotly.offline.plot(fig, filename=output_dir + 'statis-score-hist.html', auto_open=False)
 
 
+# just for testing
 def get_score_thre():
     score_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
@@ -56,7 +60,7 @@ def get_score_thre():
 
 
 # args
-src_dir = "test-single/"
+src_dir = "test-plus/"
 score_thre = 2.6
 valid_min_frame = 10
 output_dir = 'fightDetect/fig/' + src_dir
