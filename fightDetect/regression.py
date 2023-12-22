@@ -154,7 +154,7 @@ def start_location_reg(norm=False):
 
         # normalize the x, y location data
         if norm:
-            high_score = dp.xy_normalize(high_score, keys, window=rolling_window_frame)
+            high_score = dp.xy_normalize(high_score, keys, window=rolling_window_frame, min_p_len=valid_min_frame)
             for box_col in range(0, 4):
                 high_score[str(box_col)] = high_score[str(box_col) + 'norm']
 
@@ -258,7 +258,7 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
 
 
 # do segmentation and regression based on keypoints data of a person
-def start_key_reg():
+def start_key_reg(norm=False):
     print('starting regression on keypoints data')
     # left/right arm: x, y location vectors relative to shoulders
     # key 5 left shoulder 9 left wrist
@@ -277,12 +277,13 @@ def start_key_reg():
         print('processing file ' + fname)
         if keys is None or boxes is None:
             continue
-        # calculate the speed
-        # speed = dp.key_speed(keys)
-        # drop data with lower scores
-        # speed = speed[speed['score'] > score_thre]
-
         high_score = keys[keys['score'] > score_thre]
+        # normalize the x, y location data
+        if norm:
+            high_score = dp.key_normalize(high_score)
+            key_cols = list(range(0, 77, 3)) + list(range(1, 77, 3))
+            for key_col in key_cols:
+                high_score[str(key_col)] = high_score[str(key_col) + 'norm']
 
         for k, v in vector_features.items():
             vector_res[k] = xy_feature_reg(
@@ -333,7 +334,7 @@ def start_key_reg():
 
 
 # args
-src_dir = "normal-plus/"
+src_dir = "test-single/"
 score_thre = 2.6
 linear = False
 max_segment_num = 5
@@ -363,4 +364,4 @@ if __name__ == '__main__':
 
     start_location_reg(norm=normalization)
     start_iou_reg()
-    start_key_reg()
+    start_key_reg(norm=normalization)
