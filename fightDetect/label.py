@@ -74,4 +74,4 @@ if __name__ == '__main__':
     # draw_score()
 
     labels = vid_statis()
-    labels.to_excel(output_dir + 'lables.' + datetime.now().strftime("%Y-%m-%d.%H-%M-%S") + '.xlsx')
+    labels.to_excel(output_dir + 'labels.' + datetime.now().strftime("%Y-%m-%d.%H-%M-%S") + '.xlsx')
