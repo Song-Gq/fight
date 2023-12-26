@@ -53,7 +53,7 @@ def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=None):
 def draw_statis(res_df, output_name):
     df_draw = res_df.copy(deep=True)
     # df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-    df_draw['cat'] = df_draw['file'].str.replace(r'^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
+    df_draw['cat'] = df_draw['file'].str.replace(r'[0-9]+', '', regex=True)
 
     fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='box', marginal_y='box', hover_name='file')
     plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-statis-scatter.html', auto_open=False)
@@ -163,7 +163,9 @@ def start_location_reg(src_dir, norm=False):
         # drop data with lower scores
         # using higher threshold here
         # high_score = boxes[boxes['score'] > score_thre]
-        high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=VALID_MIN_FRAME)
+        high_score = dp.get_high_score(boxes, upper_limit=340, 
+                                       min_p_len=VALID_MIN_FRAME, 
+                                       lower_confi=LOWER_CONFIDENCE)
         if high_score.shape[0] > 0:
             # normalize the x, y location data
             if norm:
@@ -201,7 +203,9 @@ def start_iou_reg(src_dir):
         # drop data with lower scores
         # using higher threshold here
         # high_score = boxes[boxes['score'] > score_thre]
-        high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=VALID_MIN_FRAME)
+        high_score = dp.get_high_score(boxes, upper_limit=340, 
+                                       min_p_len=VALID_MIN_FRAME, 
+                                       lower_confi=LOWER_CONFIDENCE)
         if high_score.shape[0] > 0:
             # do segmentation and regression for iou data
             # fft_df is useless here
@@ -224,7 +228,7 @@ def start_iou_reg(src_dir):
     # iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
     iou_statis_res.to_csv(OUTPUT_DIR + 'iou_statis_res.csv')
     # iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-    iou_statis_res['cat'] = iou_statis_res['file'].str.replace(r'^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
+    iou_statis_res['cat'] = iou_statis_res['file'].str.replace(r'[0-9]+', '', regex=True)
     fig = px.histogram(iou_statis_res, x='var', color='cat', marginal='rug', hover_name='file')
     plotly.offline.plot(fig, filename=OUTPUT_DIR + 'statis-iou-hist.html', auto_open=False)
 
@@ -295,7 +299,9 @@ def start_key_reg(src_dir, norm=False):
         if keys is None or boxes is None:
             continue
         # high_score = boxes[boxes['score'] > score_thre]
-        high_score = dp.get_high_score(keys, upper_limit=340, min_p_len=VALID_MIN_FRAME)
+        high_score = dp.get_high_score(keys, upper_limit=340, 
+                                       min_p_len=VALID_MIN_FRAME, 
+                                       lower_confi=LOWER_CONFIDENCE)
         if high_score.shape[0] > 0:
             # normalize the x, y location data
             if norm:
@@ -316,7 +322,7 @@ def start_key_reg(src_dir, norm=False):
         # v[1].to_excel(output_dir + k + '_statis_speed_res.xlsx')
         v[1].to_csv(OUTPUT_DIR + k + '_statis_speed_res.csv')
         # v[1]['cat'] = v[1]['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-        v[1]['cat'] = v[1]['file'].str.replace(r'^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
+        v[1]['cat'] = v[1]['file'].str.replace(r'[0-9]+', '', regex=True)
         fig = px.histogram(v[1], x='var', color='cat', marginal='rug', hover_name='file')
         plotly.offline.plot(fig, filename=OUTPUT_DIR + k + '_statis_speed_hist.html', auto_open=False)
 
@@ -360,13 +366,14 @@ SRC_DIR = "fight-sur/"
 # linear = False
 MAX_SEGMENT_NUM = 1
 SEGMENT_REG_DEG = 2
-VALID_MIN_FRAME = 10
+VALID_MIN_FRAME = 5
 # for x, y location segmentation and regression
 # and for calculating iou
 INTERP_METHOD = 'previous'
 IOU_TYPE = 'giou'
 NORMALIZATION = True
 # rolling_window_frame = 100
+LOWER_CONFIDENCE = True
 
 
 OUTPUT_SUFFIX = '-seg_num=' + str(MAX_SEGMENT_NUM) + \

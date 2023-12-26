@@ -9,17 +9,17 @@ from huang_thresholding import HuangThresholding
 import numpy as np
 
 
-def vid_statis():
+def vid_statis(src_dir):
     vid_label = pd.DataFrame()
     for _, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         # Not Empty Dataframe
         if boxes is not None:
-            high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=valid_min_frame)
+            high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=VALID_MIN_FRAME)
             if high_score.shape[0] > 0:
                 score_thresholds = high_score['score_thre'].values[0]
                 # high_score = boxes[boxes['score'] > score_thre]
                 file_res = high_score.groupby(['idx'])['image_id'].agg(['min', 'max', 'count'])
-                file_res = file_res[file_res['count'] > valid_min_frame]
+                file_res = file_res[file_res['count'] > VALID_MIN_FRAME]
                 
                 score = high_score.groupby(['idx'])['score'].agg(['min', 'max', 'mean'])
                 file_res = pd.merge(file_res, score, how='inner', on=['idx'], suffixes=['frame', 'score'])
@@ -30,19 +30,20 @@ def vid_statis():
     return vid_label
 
 
-def draw_score():
+def draw_score(src_dir):
     score_res = pd.DataFrame()
     for _, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
-        boxes['file'] = re.sub(r'^(AlphaPose_)|(\.json)$', '', fname)
-        boxes['cat'] = re.sub(r'^(AlphaPose_)|([0-9]+\.json)$', '', fname)
-        score_res = pd.concat([score_res, boxes[['idx', 'score', 'file', 'cat']]])
-        # score = raw_df.groupby(['idx'])['score']
-    fig = px.histogram(score_res, x='score', color='idx', marginal='box', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-score-hist.html', auto_open=False)
+        if boxes is not None:
+            boxes['file'] = re.sub(r'^(AlphaPose_)|(\.json)$', '', fname)
+            boxes['cat'] = re.sub(r'^(AlphaPose_)|([0-9]+\.json)$', '', fname)
+            score_res = pd.concat([score_res, boxes[['idx', 'score', 'file', 'cat']]])
+            # score = raw_df.groupby(['idx'])['score']
+    fig = px.histogram(score_res, x='score', color='file', marginal='box', hover_name='file')
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + 'statis-score-hist.html', auto_open=False)
 
 
 # just for testing
-def get_score_thre():
+def get_score_thre(src_dir):
     score_res = pd.DataFrame()
     for _, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         boxes['file'] = re.sub(r'^(AlphaPose_)|(\.json)$', '', fname)
@@ -61,18 +62,18 @@ def get_score_thre():
 
 
 # args
-src_dir = "fight-sur/"
-score_thre = 2.6
-valid_min_frame = 10
-output_dir = 'fightDetect/fig/' + src_dir
+SRC_DIR = "fight-sur/"
+# score_thre = 2.6
+VALID_MIN_FRAME = 10
+OUTPUT_DIR = 'fightDetect/fig/' + SRC_DIR
 
 
 if __name__ == '__main__':
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # get_score_thre()
 
-    # draw_score()
+    draw_score(SRC_DIR)
 
-    labels = vid_statis()
-    labels.to_excel(output_dir + 'labels.' + datetime.now().strftime("%Y-%m-%d.%H-%M-%S") + '.xlsx')
+    # labels = vid_statis(SRC_DIR)
+    # labels.to_excel(OUTPUT_DIR + 'labels.' + datetime.now().strftime(r"%Y-%m-%d.%H-%M-%S") + '.xlsx')

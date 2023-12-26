@@ -338,7 +338,7 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
         id_col = 'idx'
             
     res_df = pd.DataFrame()
-    video_len = box_df['image_id'].max()
+    video_len = int(box_df['image_id'].max())
     p_ids = box_df[id_col].unique()
 
     for p in p_ids:
@@ -554,7 +554,7 @@ def key_normalize(key_df):
     return box_key
 
 
-def get_high_score(vid_df, upper_limit=340, min_p_len=10):
+def get_high_score(vid_df, upper_limit=340, min_p_len=10, lower_confi=False):
     # data range from [0 to upper_limit/100.0]
     # histogram bins from [0.00, 0.01) to [3.39, 3.40]
     histogram_data, _ = np.histogram(vid_df['score'], bins=[b/100.0 for b in range(0, upper_limit+1)])
@@ -570,7 +570,7 @@ def get_high_score(vid_df, upper_limit=340, min_p_len=10):
         # data length too short
         if p_df.shape[0] > min_p_len:
             # compare the 1/4 quantile of a person's score and the huang_thre
-            p_q1 = p_df['score'].quantile(0.25)
+            p_q1 = p_df['score'].quantile(0.1 if lower_confi else 0.25)
             if p_q1 > vid_score_thre:
                 high_score_p.append(p)
     vid_df['score_thre'] = vid_score_thre
