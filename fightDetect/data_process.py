@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 from scipy.fftpack import fft, fft2
-from scipy.signal import stft
+# from scipy.signal import stft
 from scipy.interpolate import interp1d
 import os
 import itertools
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.tree import DecisionTreeRegressor
@@ -67,7 +67,7 @@ def box_area_xywh(box1, box2):
 
 
 def box_iou(box1, box2):
-    inter, uni, c = box_area_xywh(box1, box2)
+    inter, uni, _ = box_area_xywh(box1, box2)
     return inter / uni
 
 
@@ -262,7 +262,7 @@ def do_xy_fft(box_df, interp_type, min_p_len=10):
     return fft_df
 
 
-def poly_regress(box_df, val_col, linear=False, min_len=10):
+def poly_regress(box_df, val_col, reg_deg=2, min_len=10):
     res_df = pd.DataFrame()
     video_len = box_df['image_id'].max()
     p_ids = box_df['idx'].unique()
@@ -272,7 +272,7 @@ def poly_regress(box_df, val_col, linear=False, min_len=10):
         if p_df.shape[0] > min_len:
             # avoid exponential explosion
             # 2-degree does noe match the real scene that a man's speed cannot grow at a squared way
-            pf = PolynomialFeatures(degree=3, interaction_only=linear)
+            pf = PolynomialFeatures(degree=reg_deg, interaction_only=False)
             x_poly = pf.fit_transform(p_df['image_id'].values.reshape(-1, 1))
             
             lr = LinearRegression()
@@ -321,7 +321,10 @@ def tree_reg(box_df, val_col, min_len=10):
 
 # calculate the gradient and segment data using decision trees
 # and then using regression to fit every segment
-def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='linear', xy_col=['0', '1']):
+def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='linear', xy_cols=None):
+    # avoid using [] as the default value of xy_cols
+    if xy_cols is None:
+        xy_cols = ['0', '1']
     # the value column is iou data
     if val_col == 'iou':
         # then the identity column is 'comb', combination of pedestrians
@@ -333,7 +336,7 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
     else:
         # then the identity column is 'idx', represents the pedestrians
         id_col = 'idx'
-
+            
     res_df = pd.DataFrame()
     video_len = box_df['image_id'].max()
     p_ids = box_df[id_col].unique()
@@ -352,59 +355,84 @@ def tree_seg(box_df, val_col, max_seg=3, reg_deg=2, min_len=10, interp_type='lin
                 # do interpolation
                 # the x, y here represent the axes in the video frame
                 # 0 is not filled in the front and end of the time series
-                x_interp = do_interp(p_df, 'image_id', xy_col[0], video_len, interp_type, fill0=False, min_p_len=min_len)
-                y_interp = do_interp(p_df, 'image_id', xy_col[1], video_len, interp_type, fill0=False, min_p_len=min_len)
+                x_interp = do_interp(p_df, 'image_id', xy_cols[0], video_len, interp_type, fill0=False, min_p_len=min_len)
+                y_interp = do_interp(p_df, 'image_id', xy_cols[1], video_len, interp_type, fill0=False, min_p_len=min_len)
                 xy_interp = pd.merge(x_interp, y_interp, on='image_id', how='inner')
                 xy_interp.fillna(0, inplace=True)
                 
             # the x, y here represent frame number and value seperately
             if xy_interp is not None:
-                x = xy_interp['image_id'].values
-                y = xy_interp[val_col].values
-                # calculate the gradient of y
-                dy = np.gradient(y, x)
+                # disable segmenting by decesion tree
+                if max_seg == 1:
+                    x = xy_interp['image_id'].values.reshape(-1, 1)
+                    y = xy_interp[val_col]
 
-                tree = DecisionTreeRegressor(max_leaf_nodes=max_seg)
-                tree.fit(x.reshape(-1, 1), dy.reshape(-1, 1))
-                dy_pred = tree.predict(x.reshape(-1, 1))
+                    # using polynomial regression to fit
+                    pf = PolynomialFeatures(degree=reg_deg)
+                    x_poly = pf.fit_transform(x)
+                    
+                    lr = LinearRegression()
+                    lr.fit(x_poly, y)
 
-                # iter the segments by decision trees
-                seg_idx = 0
-                for seg_val in np.unique(dy_pred):
-                    msk = dy_pred == seg_val
-                    x_seg = x[msk].reshape(-1, 1)
-                    y_seg = y[msk].reshape(-1, 1)
+                    xx = np.linspace(0, video_len + 1, video_len + 2)
+                    xx_poly = pf.transform(xx.reshape(-1, 1))
+                    yy_poly = lr.predict(xx_poly)
 
-                    # drop segments that is too short
-                    if x_seg.shape[0] > min_len:
-                        seg_start = int(x_seg.min())
-                        seg_end = int(x_seg.max())
-                        seg_len = seg_end - seg_start + 1
+                    p_res = pd.DataFrame()
+                    p_res['image_id'] = xx
+                    p_res[val_col + 'reg'] = yy_poly
+                    p_res[id_col] = p
+                    p_res['seg'] = 0
+                    res_df = pd.concat([res_df, p_res])
 
-                        # using polynomial regression to fit every segment
-                        pf = PolynomialFeatures(degree=reg_deg)
-                        x_poly = pf.fit_transform(x_seg)
-                        
-                        lr = LinearRegression()
-                        lr.fit(x_poly, y_seg)
+                # max segment >= 2
+                else:
+                    x = xy_interp['image_id'].values
+                    y = xy_interp[val_col].values
+                    # calculate the gradient of y
+                    dy = np.gradient(y, x)
 
-                        xx_seg = np.linspace(seg_start, seg_end, seg_len)
-                        xx_poly = pf.transform(xx_seg.reshape(-1, 1))
-                        yy_poly = lr.predict(xx_poly)
+                    tree = DecisionTreeRegressor(max_leaf_nodes=max_seg)
+                    tree.fit(x.reshape(-1, 1), dy.reshape(-1, 1))
+                    dy_pred = tree.predict(x.reshape(-1, 1))
 
-                        seg_res = pd.DataFrame()
-                        seg_res['image_id'] = xx_seg
-                        seg_res[val_col + 'reg'] = yy_poly
-                        seg_res[id_col] = p
-                        seg_res['seg'] = seg_idx
-                        # seg_res['seg'] = val_col + '+' + str(seg_idx)
-                        # if val_col == '0':
-                        #     seg_res['x_seg'] = seg_idx
-                        # else:
-                        #     seg_res['y_seg'] = seg_idx
+                    # iter the segments by decision trees
+                    seg_idx = 0
+                    for seg_val in np.unique(dy_pred):
+                        msk = dy_pred == seg_val
+                        x_seg = x[msk].reshape(-1, 1)
+                        y_seg = y[msk].reshape(-1, 1)
 
-                        res_df = pd.concat([res_df, seg_res])
-                    seg_idx = seg_idx + 1
+                        # drop segments that is too short
+                        if x_seg.shape[0] > min_len:
+                            seg_start = int(x_seg.min())
+                            seg_end = int(x_seg.max())
+                            seg_len = seg_end - seg_start + 1
+
+                            # using polynomial regression to fit every segment
+                            pf = PolynomialFeatures(degree=reg_deg)
+                            x_poly = pf.fit_transform(x_seg)
+                            
+                            lr = LinearRegression()
+                            lr.fit(x_poly, y_seg)
+
+                            xx_seg = np.linspace(seg_start, seg_end, seg_len)
+                            xx_poly = pf.transform(xx_seg.reshape(-1, 1))
+                            yy_poly = lr.predict(xx_poly)
+
+                            seg_res = pd.DataFrame()
+                            seg_res['image_id'] = xx_seg
+                            seg_res[val_col + 'reg'] = yy_poly
+                            seg_res[id_col] = p
+                            seg_res['seg'] = seg_idx
+                            # seg_res['seg'] = val_col + '+' + str(seg_idx)
+                            # if val_col == '0':
+                            #     seg_res['x_seg'] = seg_idx
+                            # else:
+                            #     seg_res['y_seg'] = seg_idx
+
+                            res_df = pd.concat([res_df, seg_res])
+                        seg_idx = seg_idx + 1
     return res_df
 
 
@@ -447,7 +475,7 @@ def cal_metric(box_key_df):
     return box_key
 
 
-def xy_normalize(box_df, key_df, window=10, interp_type='linear', min_p_len=10):
+def xy_normalize(box_df, key_df):
     # box points: 0-3
     # keypoints: 0k-3k, 5-77
     box_key = pd.merge(

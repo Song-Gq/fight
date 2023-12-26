@@ -3,69 +3,75 @@ import plotly.express as px
 import plotly
 import pandas as pd
 import data_process as dp
-import xlwt
+# import xlwt
 import os
 from datetime import datetime
 import re
 
 
-def draw_3d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
+def draw_3d_reg(reg_df, json_name, segmented=False, xy_cols=None):
+    # avoid using [] as the default value of xy_cols
+    if xy_cols is None:
+        xy_cols = ['0', '1']
     color_col = 'idx' if segmented else 'score'
     symb_col = 'seg_comb' if segmented else 'idx'
     # output_name = re.sub('[a-zA-Z_.]+', '', json_name)
-    output_name = re.sub('^(AlphaPose_)|(\.json)$', '', json_name)
+    output_name = re.sub(r'^(AlphaPose_)|(\.json)$', '', json_name)
     output_name = output_name + '-' + xy_cols[0][0: xy_cols[0].rfind('x') - 1] +'-xy'
     # 3d scatter
     fig = px.scatter_3d(reg_df, x=xy_cols[0]+'reg', y=xy_cols[1]+'reg', z='image_id', symbol=symb_col, color=color_col)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-reg.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-reg.html', auto_open=False)
 
     fig = px.scatter_3d(reg_df, x=xy_cols[0], y=xy_cols[1], z='image_id', symbol=symb_col, color=color_col)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '.html', auto_open=False)
 
 
-def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=['0','1']):
+def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=None):
+    # avoid using [] as the default value of xy_cols
+    if xy_cols is None:
+        xy_cols = ['0', '1']
     subplot_row_x = 'segx' if segmented else None
     subplot_row_y = 'segy' if segmented else None
     # output_name = re.sub('[a-zA-Z_.]+', '', json_name)
-    output_name = re.sub('^(AlphaPose_)|(\.json)$', '', json_name)
+    output_name = re.sub(r'^(AlphaPose_)|(\.json)$', '', json_name)
     reg_df.sort_values(by=['idx', 'image_id'], axis=0, inplace=True)
 
     # 2d line
     fig = px.line(reg_df, x='image_id', y=xy_cols[0]+'reg', facet_col='idx', facet_row=subplot_row_x)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[0] + '-reg.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-' + xy_cols[0] + '-reg.html', auto_open=False)
 
     fig = px.line(reg_df, x='image_id', y=xy_cols[0], facet_col='idx', facet_row=subplot_row_x)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[0] + '.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-' + xy_cols[0] + '.html', auto_open=False)
 
     fig = px.line(reg_df, x='image_id', y=xy_cols[1]+'reg', facet_col='idx', facet_row=subplot_row_y)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[1] + '-reg.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-' + xy_cols[1] + '-reg.html', auto_open=False)
 
     fig = px.line(reg_df, x='image_id', y=xy_cols[1], facet_col='idx', facet_row=subplot_row_y)
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-' + xy_cols[1] + '.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-' + xy_cols[1] + '.html', auto_open=False)
 
 
 def draw_statis(res_df, output_name):
     df_draw = res_df.copy(deep=True)
     # df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-    df_draw['cat'] = df_draw['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
+    df_draw['cat'] = df_draw['file'].str.replace(r'^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
 
     fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='box', marginal_y='box', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-statis-scatter.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-statis-scatter.html', auto_open=False)
     
     fig = px.histogram(df_draw, x='var_x', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-statis-x-hist.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-statis-x-hist.html', auto_open=False)
 
     fig = px.histogram(df_draw, x='var_y', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + output_name + '-statis-y-hist.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-statis-y-hist.html', auto_open=False)
 
 
 def abs_mean(x):
     return abs(x).mean()
 
 
-def do_poly_reg(box_df, lin_reg=False, min_len=10):
-    x_reg_df = dp.poly_regress(box_df, '0', linear=lin_reg, min_len=min_len)
-    y_reg_df = dp.poly_regress(box_df, '1', linear=lin_reg, min_len=min_len)
+def do_poly_reg(box_df, reg_deg=2, min_len=10):
+    x_reg_df = dp.poly_regress(box_df, '0', reg_deg=reg_deg, min_len=min_len)
+    y_reg_df = dp.poly_regress(box_df, '1', reg_deg=reg_deg, min_len=min_len)
     return pd.merge(x_reg_df, y_reg_df, on=['image_id', 'idx'], how='inner')
 
 
@@ -75,11 +81,14 @@ def do_tree_reg(box_df, min_len=10):
     return pd.merge(x_reg_df, y_reg_df, on=['image_id', 'idx'], how='inner')
 
 
-def do_tree_seg(box_df, max_seg, reg_deg, min_len=10, interp_type='linear', xy_col=['0', '1']):
-    x_seg_df = dp.tree_seg(box_df, xy_col[0], max_seg=max_seg, reg_deg=reg_deg,
-                            min_len=min_len, interp_type=interp_type, xy_col=xy_col)
-    y_seg_df = dp.tree_seg(box_df, xy_col[1], max_seg=max_seg, reg_deg=reg_deg,
-                            min_len=min_len, interp_type=interp_type, xy_col=xy_col)
+def do_tree_seg(box_df, max_seg, reg_deg, min_len=10, interp_type='linear', xy_cols=None):
+    # avoid using [] as the default value of xy_cols
+    if xy_cols is None:
+        xy_cols = ['0', '1']
+    x_seg_df = dp.tree_seg(box_df, xy_cols[0], max_seg=max_seg, reg_deg=reg_deg,
+                            min_len=min_len, interp_type=interp_type, xy_cols=xy_cols)
+    y_seg_df = dp.tree_seg(box_df, xy_cols[1], max_seg=max_seg, reg_deg=reg_deg,
+                            min_len=min_len, interp_type=interp_type, xy_cols=xy_cols)
     if x_seg_df.shape[0] > min_len and y_seg_df.shape[0] > min_len:
         return pd.merge(x_seg_df, y_seg_df, on=['image_id', 'idx'], how='inner', suffixes=['x', 'y'])
     else:
@@ -106,7 +115,10 @@ def valid_merge(xy_df, raw_df, inner=False, id_col='idx'):
 # cal the diff between reg and raw data
 # only the values of points in 'high_score' is calculated 
 # which means missing points is not considered
-def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy', xy_cols=['0','1']):
+def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy', xy_cols=None):
+    # avoid using [] as the default value of xy_cols
+    if xy_cols is None:
+        xy_cols = ['0', '1']
     if data_type == 'xy':
         diff_df = valid_merge(xy_df, raw_df, inner=True)
         diff_df['x_diff'] = diff_df[xy_cols[0]] - diff_df[xy_cols[0]+'reg']
@@ -116,7 +128,7 @@ def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy', xy_cols=['0','1']):
         x_diff_df = diff_df.groupby(['idx'])['x_diff'].agg([abs_mean, 'var']).reset_index()
         y_diff_df = diff_df.groupby(['idx'])['y_diff'].agg([abs_mean, 'var']).reset_index()
         xy_diff_df = pd.merge(x_diff_df, y_diff_df, on='idx', how='outer')
-        xy_diff_df['file'] = re.sub('^(AlphaPose_)|(\.json)$', '', file_name)
+        xy_diff_df['file'] = re.sub(r'^(AlphaPose_)|(\.json)$', '', file_name)
         return xy_diff_df
 
     # data_type == 'iou' or 'scalar'
@@ -127,7 +139,7 @@ def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy', xy_cols=['0','1']):
 
     # mean diff
     res_diff_df = diff_df.groupby([id_col])[data_type + '_diff'].agg([abs_mean, 'var']).reset_index()
-    res_diff_df['file'] = re.sub('^(AlphaPose_)|(\.json)$', '', file_name)
+    res_diff_df['file'] = re.sub(r'^(AlphaPose_)|(\.json)$', '', file_name)
     return res_diff_df
 
 
@@ -141,7 +153,7 @@ def rename_seg(seg_df):
 
 
 # do segmentation and regression based on x, y location data of a person
-def start_location_reg(norm=False):
+def start_location_reg(src_dir, norm=False):
     print('starting regression on location data')
     statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
@@ -151,19 +163,19 @@ def start_location_reg(norm=False):
         # drop data with lower scores
         # using higher threshold here
         # high_score = boxes[boxes['score'] > score_thre]
-        high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=valid_min_frame)
+        high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=VALID_MIN_FRAME)
         if high_score.shape[0] > 0:
             # normalize the x, y location data
             if norm:
-                high_score = dp.xy_normalize(high_score, keys, window=rolling_window_frame, min_p_len=valid_min_frame)
+                high_score = dp.xy_normalize(high_score, keys)
                 for box_col in range(0, 4):
                     high_score[str(box_col)] = high_score[str(box_col) + 'norm']
 
             # fig = px.line(high_score, x='image_id', y='body_metric_roll', facet_col='idx')
             # plotly.offline.plot(fig, filename=output_dir + re.sub('[a-zA-Z_.]+', '', fname) + '-metric_roll.html')
 
-            xy_seg = do_tree_seg(high_score, max_segment_num, segment_reg_deg, 
-                                min_len=valid_min_frame, interp_type=interp_method)
+            xy_seg = do_tree_seg(high_score, MAX_SEGMENT_NUM, SEGMENT_REG_DEG, 
+                                min_len=VALID_MIN_FRAME, interp_type=INTERP_METHOD)
             if xy_seg is not None:
                 reg_res = valid_merge(xy_seg, high_score, inner=True)
                 reg_res = rename_seg(reg_res)
@@ -174,12 +186,12 @@ def start_location_reg(norm=False):
                 xy_diff = cal_reg_diff(xy_seg, high_score, fname)
                 statis_res = pd.concat([statis_res, xy_diff], axis=0)
     # statis_res.to_excel(output_dir + 'statis_res.xlsx')
-    statis_res.to_csv(output_dir + 'statis_res.csv')
+    statis_res.to_csv(OUTPUT_DIR + 'statis_res.csv')
     draw_statis(statis_res, 'location')
 
 
 # do segmentation and regression based on iou data of a combination of persons
-def start_iou_reg():
+def start_iou_reg(src_dir):
     print('starting regression on iou data')
     iou_statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
@@ -189,17 +201,17 @@ def start_iou_reg():
         # drop data with lower scores
         # using higher threshold here
         # high_score = boxes[boxes['score'] > score_thre]
-        high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=valid_min_frame)
+        high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=VALID_MIN_FRAME)
         if high_score.shape[0] > 0:
             # do segmentation and regression for iou data
             # fft_df is useless here
-            iou_df, fft_df = dp.comb_iou_fft(
-                high_score, iou_type=iou_type, interp_type=interp_method, fill0=False)
-            if iou_df.shape[0] > valid_min_frame:
-                iou_seg = dp.tree_seg(iou_df, 'iou', max_seg=max_segment_num, reg_deg=segment_reg_deg,
-                                    min_len=valid_min_frame, interp_type=interp_method)
-                if iou_seg.shape[0] > valid_min_frame:
-                    iou_reg_res = valid_merge(iou_seg, iou_df, inner=True, id_col='comb')
+            iou_df, _ = dp.comb_iou_fft(
+                high_score, iou_type=IOU_TYPE, interp_type=INTERP_METHOD, fill0=False)
+            if iou_df.shape[0] > VALID_MIN_FRAME:
+                iou_seg = dp.tree_seg(iou_df, 'iou', max_seg=MAX_SEGMENT_NUM, reg_deg=SEGMENT_REG_DEG,
+                                    min_len=VALID_MIN_FRAME, interp_type=INTERP_METHOD)
+                if iou_seg.shape[0] > VALID_MIN_FRAME:
+                    # iou_reg_res = valid_merge(iou_seg, iou_df, inner=True, id_col='comb')
                     
                     # fig = px.line(iou_reg_res, x='image_id', y='ioureg', facet_col='comb', facet_row='seg')
                     # plotly.offline.plot(fig, filename='fightDetect/fig/' + src_dir + fname + '-iou-reg.html')
@@ -210,11 +222,11 @@ def start_iou_reg():
                     iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
                     iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
     # iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
-    iou_statis_res.to_csv(output_dir + 'iou_statis_res.csv')
+    iou_statis_res.to_csv(OUTPUT_DIR + 'iou_statis_res.csv')
     # iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-    iou_statis_res['cat'] = iou_statis_res['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
+    iou_statis_res['cat'] = iou_statis_res['file'].str.replace(r'^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
     fig = px.histogram(iou_statis_res, x='var', color='cat', marginal='rug', hover_name='file')
-    plotly.offline.plot(fig, filename=output_dir + 'statis-iou-hist.html', auto_open=False)
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + 'statis-iou-hist.html', auto_open=False)
 
 
 # for keypoint features where the data are like x, y location vectors
@@ -225,9 +237,9 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
     temp_df[feature_name + '_x'] = temp_df[str(key_nums[1]*3)] - temp_df[str(key_nums[0]*3)]
     temp_df[feature_name + '_y'] = temp_df[str(key_nums[1]*3+1)] - temp_df[str(key_nums[0]*3+1)]
 
-    feature_xy = do_tree_seg(temp_df, max_segment_num, segment_reg_deg, 
-                        min_len=valid_min_frame, interp_type=interp_method, 
-                        xy_col=[feature_name + '_x', feature_name + '_y'])
+    feature_xy = do_tree_seg(temp_df, MAX_SEGMENT_NUM, SEGMENT_REG_DEG, 
+                        min_len=VALID_MIN_FRAME, interp_type=INTERP_METHOD, 
+                        xy_cols=[feature_name + '_x', feature_name + '_y'])
     if feature_xy is not None:
         feature_xy = valid_merge(feature_xy, temp_df, inner=True, id_col='idx')
         feature_xy = rename_seg(feature_xy)
@@ -250,8 +262,8 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
         # to keep the 'tree_seg' function compatible, copy a column called 'scalar'
         vector_speed['scalar'] = vector_speed[feature_name + '_speed']
         vector_speed = vector_speed.dropna(subset=['scalar'], axis=0)
-        speed_seg = dp.tree_seg(vector_speed, 'scalar', max_seg=max_segment_num, reg_deg=segment_reg_deg,
-                                    min_len=valid_min_frame, interp_type=interp_method)
+        speed_seg = dp.tree_seg(vector_speed, 'scalar', max_seg=MAX_SEGMENT_NUM, reg_deg=SEGMENT_REG_DEG,
+                                    min_len=VALID_MIN_FRAME, interp_type=INTERP_METHOD)
         # empty dataframe
         if speed_seg.shape[0] == 0:
             return res_df
@@ -263,7 +275,7 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
 
 
 # do segmentation and regression based on keypoints data of a person
-def start_key_reg(norm=False):
+def start_key_reg(src_dir, norm=False):
     print('starting regression on keypoints data')
     # left/right arm: x, y location vectors relative to shoulders
     # key 5 left shoulder 9 left wrist
@@ -283,7 +295,7 @@ def start_key_reg(norm=False):
         if keys is None or boxes is None:
             continue
         # high_score = boxes[boxes['score'] > score_thre]
-        high_score = dp.get_high_score(keys, upper_limit=340, min_p_len=valid_min_frame)
+        high_score = dp.get_high_score(keys, upper_limit=340, min_p_len=VALID_MIN_FRAME)
         if high_score.shape[0] > 0:
             # normalize the x, y location data
             if norm:
@@ -298,15 +310,15 @@ def start_key_reg(norm=False):
     
     for k, v in vector_res.items():
         # v[0].to_excel(output_dir + k + '_statis_res.xlsx')
-        v[0].to_csv(output_dir + k + '_statis_res.csv')
+        v[0].to_csv(OUTPUT_DIR + k + '_statis_res.csv')
         draw_statis(v[0], k)
 
         # v[1].to_excel(output_dir + k + '_statis_speed_res.xlsx')
-        v[1].to_csv(output_dir + k + '_statis_speed_res.csv')
+        v[1].to_csv(OUTPUT_DIR + k + '_statis_speed_res.csv')
         # v[1]['cat'] = v[1]['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
-        v[1]['cat'] = v[1]['file'].str.replace('^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
+        v[1]['cat'] = v[1]['file'].str.replace(r'^(AlphaPose_)|([0-9]+\.json)$', '', regex=True)
         fig = px.histogram(v[1], x='var', color='cat', marginal='rug', hover_name='file')
-        plotly.offline.plot(fig, filename=output_dir + k + '_statis_speed_hist.html', auto_open=False)
+        plotly.offline.plot(fig, filename=OUTPUT_DIR + k + '_statis_speed_hist.html', auto_open=False)
 
         # # key 6 left shoulder 10 left wrist
 
@@ -343,34 +355,32 @@ def start_key_reg(norm=False):
 
 
 # args
-src_dir = "test-single/"
-score_thre = 2.6
-linear = False
-max_segment_num = 5
-segment_reg_deg = 2
-valid_min_frame = 30
+SRC_DIR = "fight-sur/"
+# score_thre = 2.6
+# linear = False
+MAX_SEGMENT_NUM = 1
+SEGMENT_REG_DEG = 2
+VALID_MIN_FRAME = 10
 # for x, y location segmentation and regression
 # and for calculating iou
-interp_method = 'previous'
-iou_type = 'giou'
-normalization = True
-rolling_window_frame = 100
+INTERP_METHOD = 'previous'
+IOU_TYPE = 'giou'
+NORMALIZATION = True
+# rolling_window_frame = 100
 
 
-output_suffix = '-roll_window=' + str(rolling_window_frame) + \
-    '-score_thre=' + str(score_thre) + \
-    '-seg_num=' + str(max_segment_num) + \
-    '-reg_deg=' + str(segment_reg_deg) + \
-    '-normalization=' + str(normalization) + \
-    '-valid_minf=' + str(valid_min_frame)
-output_dir = 'fightDetect/fig/' + src_dir +  \
-    datetime.now().strftime("%Y-%m-%d.%H-%M-%S") + \
-    output_suffix + '/'
+OUTPUT_SUFFIX = '-seg_num=' + str(MAX_SEGMENT_NUM) + \
+    '-reg_deg=' + str(SEGMENT_REG_DEG) + \
+    '-normalization=' + str(NORMALIZATION) + \
+    '-valid_minf=' + str(VALID_MIN_FRAME)
+OUTPUT_DIR = 'fightDetect/fig/' + SRC_DIR +  \
+    datetime.now().strftime(r"%Y-%m-%d.%H-%M-%S") + \
+    OUTPUT_SUFFIX + '/'
 
 
 if __name__ == '__main__':
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    start_location_reg(norm=normalization)
-    start_iou_reg()
-    start_key_reg(norm=normalization)
+    start_location_reg(SRC_DIR, norm=NORMALIZATION)
+    start_iou_reg(SRC_DIR)
+    start_key_reg(SRC_DIR, norm=NORMALIZATION)

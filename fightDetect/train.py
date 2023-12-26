@@ -5,7 +5,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-import numpy as np
+# import numpy as np
 
 
 def read_from_csv(csv_dir):
@@ -81,8 +81,8 @@ def prepare_data(feature_df, ground_truth):
     merged_data['label_encoded'] = lbc.fit_transform(merged_data['label'])
 
     ohe = OneHotEncoder()
-    X_ohe = ohe.fit_transform(merged_data['label_encoded'].values.reshape(-1, 1)).toarray()
-    df_ohe = pd.DataFrame(X_ohe, columns=['label' + str(i) for i in range(X_ohe.shape[1])])
+    x_ohe = ohe.fit_transform(merged_data['label_encoded'].values.reshape(-1, 1)).toarray()
+    df_ohe = pd.DataFrame(x_ohe, columns=['label' + str(i) for i in range(x_ohe.shape[1])])
     data = pd.concat([merged_data, df_ohe], axis=1)
     
     data_x = data.iloc[:, 0:15]
