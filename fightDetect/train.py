@@ -15,10 +15,13 @@ def read_from_csv(csv_dir, label_file=True):
     box_dfs = {}
     for kf in key_files:
         key_dfs[re.sub('(_statis_res.csv)$', '', kf)] = pd.read_csv(csv_dir + kf, index_col=0)
+        print(len(key_dfs[re.sub('(_statis_res.csv)$', '', kf)]['file'].unique()))
     for sf in speed_files:
         speed_dfs[re.sub('(_statis_speed_res.csv)$', '', sf)] = pd.read_csv(csv_dir + sf, index_col=0)
+        print(len(speed_dfs[re.sub('(_statis_speed_res.csv)$', '', sf)]['file'].unique()))
     for bf in box_files:
         box_dfs[re.sub('(statis_res.csv)$', 'box', bf)] = pd.read_csv(csv_dir + bf, index_col=0)
+        print(len(box_dfs[re.sub('(statis_res.csv)$', 'box', bf)]['file'].unique()))
 
     # split column 'comb' into 'idx1' and 'idx2'
     iou_p_df = []
@@ -112,23 +115,33 @@ def fit_xgb(feature_df, ground_truth):
 
 
 def fit_xgb_vid(feature_df):
+    data = feature_df.copy()
+    data.drop(['idx'], axis=1, inplace=True)
+
+    var_max = data.groupby('file').max()
+    var_mid = data.groupby('file').median()
+    var_avg = data.groupby('file').mean()
+
+    var_agg = pd.merge(var_max, var_mid, on='file')
+    var_agg = pd.merge(var_avg, var_agg, on='file')
+    var_agg.reset_index(inplace=True)
+
     # this will excludes data whose 'idx' is not in the label dataframe
-    feature_df['label'] = feature_df['file'].str.replace(r'[0-9]+', '', regex=True)
-
+    var_agg['label'] = var_agg['file'].str.replace(r'[0-9]+', '', regex=True)
     lbc = LabelEncoder()
-    feature_df['label_encoded'] = lbc.fit_transform(feature_df['label'])
-
-    var_max = feature_df.groupby('file').max()
-    var_max.drop(['idx', 'label'], axis=1, inplace=True)
+    var_agg['label_encoded'] = lbc.fit_transform(var_agg['label'])
+    var_agg.drop(['label', 'file'], axis=1, inplace=True)
 
     # ohe = OneHotEncoder()
     # x_ohe = ohe.fit_transform(data['label_encoded'].values.reshape(-1, 1)).toarray()
     # df_ohe = pd.DataFrame(x_ohe, columns=['label' + str(i) for i in range(x_ohe.shape[1])])
     # data = pd.concat([data, df_ohe], axis=1)
     
-    data_x = var_max.iloc[:, 0:15]
-    data_y = var_max.iloc[:, 15]
-    x_train, x_test, y_train, y_test = train_test_split(data_x, data_y)
+    data_x = var_agg.iloc[:, 0:45]
+    data_y = var_agg.iloc[:, 45]
+    random_state = 0
+    x_train, x_test, y_train, y_test = train_test_split(
+        data_x, data_y, random_state=random_state)
 
     xgb_model_0 = xgb.XGBClassifier(
         learning_rate=0.1,
@@ -140,7 +153,7 @@ def fit_xgb_vid(feature_df):
         colsample_bytree=0.8,
         objective='binary:logistic',
         scale_pos_weight=1,
-        seed=0,
+        seed=random_state,
         nthread=-1
     )
 

@@ -187,7 +187,7 @@ def get_comb(ser):
     return list(itertools.combinations(p_ids, 2))
 
 
-def comb_iou_fft(box_df, iou_type, interp_type, fill0=True):
+def comb_iou_fft(box_df, iou_type, interp_type, fill0=True, min_p_len=10):
     # to store iou results
     res = pd.DataFrame()
     # to store fft results
@@ -205,7 +205,9 @@ def comb_iou_fft(box_df, iou_type, interp_type, fill0=True):
             # res = pd.concat([res, iou_df])
 
             # do interpolation
-            res_interp = do_interp(iou_df, 'image_id', 'iou', video_len, interp_type, fill0=fill0)
+            res_interp = do_interp(iou_df, 'image_id', 'iou', 
+                                   video_len, interp_type, 
+                                   fill0=fill0, min_p_len=min_p_len)
             if res_interp is not None:
                 # append iou data
                 res_interp['comb'] = col_name

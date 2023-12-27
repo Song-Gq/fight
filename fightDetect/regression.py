@@ -113,7 +113,7 @@ def valid_merge(xy_df, raw_df, inner=False, id_col='idx'):
 
 
 # cal the diff between reg and raw data
-# only the values of points in 'high_score' is calculated 
+# only the values of points in 'high_score' is calculated
 # which means missing points is not considered
 def cal_reg_diff(xy_df, raw_df, file_name, data_type='xy', xy_cols=None):
     # avoid using [] as the default value of xy_cols
@@ -210,7 +210,8 @@ def start_iou_reg(src_dir):
             # do segmentation and regression for iou data
             # fft_df is useless here
             iou_df, _ = dp.comb_iou_fft(
-                high_score, iou_type=IOU_TYPE, interp_type=INTERP_METHOD, fill0=False)
+                high_score, iou_type=IOU_TYPE, interp_type=INTERP_METHOD,
+                fill0=False, min_p_len=VALID_MIN_FRAME)
             if iou_df.shape[0] > VALID_MIN_FRAME:
                 iou_seg = dp.tree_seg(iou_df, 'iou', max_seg=MAX_SEGMENT_NUM, reg_deg=SEGMENT_REG_DEG,
                                     min_len=VALID_MIN_FRAME, interp_type=INTERP_METHOD)

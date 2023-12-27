@@ -14,7 +14,9 @@ def vid_statis(src_dir):
     for _, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
         # Not Empty Dataframe
         if boxes is not None:
-            high_score = dp.get_high_score(boxes, upper_limit=340, min_p_len=VALID_MIN_FRAME)
+            high_score = dp.get_high_score(boxes, upper_limit=340, 
+                                           min_p_len=VALID_MIN_FRAME, 
+                                           lower_confi=LOWER_CONFIDENCE)
             if high_score.shape[0] > 0:
                 score_thresholds = high_score['score_thre'].values[0]
                 # high_score = boxes[boxes['score'] > score_thre]
@@ -66,6 +68,7 @@ SRC_DIR = "fight-sur/"
 # score_thre = 2.6
 VALID_MIN_FRAME = 5
 OUTPUT_DIR = 'fightDetect/fig/' + SRC_DIR
+LOWER_CONFIDENCE = True
 
 
 if __name__ == '__main__':
@@ -73,7 +76,7 @@ if __name__ == '__main__':
 
     # get_score_thre()
 
-    draw_score(SRC_DIR)
+    # draw_score(SRC_DIR)
 
-    # labels = vid_statis(SRC_DIR)
-    # labels.to_excel(OUTPUT_DIR + 'labels.' + datetime.now().strftime(r"%Y-%m-%d.%H-%M-%S") + '.xlsx')
+    labels = vid_statis(SRC_DIR)
+    labels.to_excel(OUTPUT_DIR + 'labels.' + datetime.now().strftime(r"%Y-%m-%d.%H-%M-%S") + '.xlsx')
