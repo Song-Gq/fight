@@ -550,7 +550,7 @@ def key_normalize(key_df):
     key_cols = list(range(0, 77, 3)) + list(range(1, 77, 3))
     for key_col in key_cols:
         box_key[str(key_col) + 'norm'] = box_key[str(key_col)] / box_key['p_metric']
-    
+
     return box_key
 
 
@@ -561,6 +561,12 @@ def get_high_score(vid_df, upper_limit=340, min_p_len=10, lower_confi=False):
     huang_thresholding = HuangThresholding(histogram_data, upper_limit)
     vid_score_thre = huang_thresholding.find_threshold() / 100.0
 
+    # use lower confidence threshold for low quality videos
+    if lower_confi:
+        vid_q1 = vid_df['score'].quantile(0.25)
+        vid_q3 = vid_df['score'].quantile(0.75)
+        vid_score_thre = vid_score_thre - vid_q3 + vid_q1
+
     # vid_df['score_thre'] = vid_score_thre
     # delete detected persons that has a lower confidence
     p_ids = vid_df['idx'].unique()
@@ -570,7 +576,7 @@ def get_high_score(vid_df, upper_limit=340, min_p_len=10, lower_confi=False):
         # data length too short
         if p_df.shape[0] > min_p_len:
             # compare the 1/4 quantile of a person's score and the huang_thre
-            p_q1 = p_df['score'].quantile(0.1 if lower_confi else 0.25)
+            p_q1 = p_df['score'].quantile(0.25)
             if p_q1 > vid_score_thre:
                 high_score_p.append(p)
     vid_df['score_thre'] = vid_score_thre

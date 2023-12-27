@@ -64,7 +64,7 @@ def get_score_thre(src_dir):
 # args
 SRC_DIR = "fight-sur/"
 # score_thre = 2.6
-VALID_MIN_FRAME = 10
+VALID_MIN_FRAME = 5
 OUTPUT_DIR = 'fightDetect/fig/' + SRC_DIR
 
 

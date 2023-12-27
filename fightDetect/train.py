@@ -8,7 +8,7 @@ from sklearn.metrics import accuracy_score
 # import numpy as np
 
 
-def read_from_csv(csv_dir):
+def read_from_csv(csv_dir, label_file=True):
     # read csvs
     key_dfs = {}
     speed_dfs = {}
@@ -48,6 +48,9 @@ def read_from_csv(csv_dir):
                     on=common_cols, suffixes=['', '_speed_' + k])
     merged.rename(columns={'var': 'var_iou'}, inplace=True)
 
+    if not label_file:
+        return merged, None
+    
     # read label csv
     label_df = pd.read_csv(csv_dir + 'labels.csv')
     label_df = label_df.loc[:, ~label_df.columns.str.contains("^Unnamed")]
@@ -71,7 +74,7 @@ def read_from_csv(csv_dir):
     return filtered, label_filtered
 
 
-def prepare_data(feature_df, ground_truth):
+def fit_xgb(feature_df, ground_truth):
     # this will excludes data whose 'idx' is not in the label dataframe
     merged_data = pd.merge(feature_df, ground_truth[['idx', 'file', 'label']],
                            on=['idx', 'file'])
@@ -108,16 +111,60 @@ def prepare_data(feature_df, ground_truth):
     print("accuracy_score:" + str(acc))
 
 
+def fit_xgb_vid(feature_df):
+    # this will excludes data whose 'idx' is not in the label dataframe
+    feature_df['label'] = feature_df['file'].str.replace(r'[0-9]+', '', regex=True)
+
+    lbc = LabelEncoder()
+    feature_df['label_encoded'] = lbc.fit_transform(feature_df['label'])
+
+    var_max = feature_df.groupby('file').max()
+    var_max.drop(['idx', 'label'], axis=1, inplace=True)
+
+    # ohe = OneHotEncoder()
+    # x_ohe = ohe.fit_transform(data['label_encoded'].values.reshape(-1, 1)).toarray()
+    # df_ohe = pd.DataFrame(x_ohe, columns=['label' + str(i) for i in range(x_ohe.shape[1])])
+    # data = pd.concat([data, df_ohe], axis=1)
+    
+    data_x = var_max.iloc[:, 0:15]
+    data_y = var_max.iloc[:, 15]
+    x_train, x_test, y_train, y_test = train_test_split(data_x, data_y)
+
+    xgb_model_0 = xgb.XGBClassifier(
+        learning_rate=0.1,
+        n_estimators=100,
+        max_depth=5,
+        min_child_weight=1,
+        gamma=0,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        objective='binary:logistic',
+        scale_pos_weight=1,
+        seed=0,
+        nthread=-1
+    )
+
+    xgb_model_0.fit(x_train, y_train)
+    acc = accuracy_score(y_test, xgb_model_0.predict(x_test))
+    print("accuracy_score:" + str(acc))
+
+
 key_names = ['left_leg', 'left_arm', 'right_leg', 'right_arm']
 key_files =  [fname + '_statis_res.csv' for fname in key_names]
 speed_files = [fname + '_statis_speed_res.csv' for fname in key_names]
 box_files = ['statis_res.csv', 'iou_statis_res.csv']
 
 # args
-src_dir = "test-plus/"
+SRC_DIR = "fight-sur/"
 
 
 if __name__ == '__main__':
-    features, gt = read_from_csv('fightDetect/csv/' + src_dir)
-    prepare_data(features, gt)
+    # classify individuals 
+    # features, gt = read_from_csv('fightDetect/csv/' + SRC_DIR, label_file=True)
+    # fit_xgb(features, gt)
+
+    # classify videos
+    features, _ = read_from_csv('fightDetect/csv/' + SRC_DIR, label_file=False)
+    fit_xgb_vid(features)
+
 
