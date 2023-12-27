@@ -13,15 +13,18 @@ def read_from_csv(csv_dir, label_file=True):
     key_dfs = {}
     speed_dfs = {}
     box_dfs = {}
-    for kf in key_files:
-        key_dfs[re.sub('(_statis_res.csv)$', '', kf)] = pd.read_csv(csv_dir + kf, index_col=0)
-        print(len(key_dfs[re.sub('(_statis_res.csv)$', '', kf)]['file'].unique()))
-    for sf in speed_files:
-        speed_dfs[re.sub('(_statis_speed_res.csv)$', '', sf)] = pd.read_csv(csv_dir + sf, index_col=0)
-        print(len(speed_dfs[re.sub('(_statis_speed_res.csv)$', '', sf)]['file'].unique()))
-    for bf in box_files:
-        box_dfs[re.sub('(statis_res.csv)$', 'box', bf)] = pd.read_csv(csv_dir + bf, index_col=0)
-        print(len(box_dfs[re.sub('(statis_res.csv)$', 'box', bf)]['file'].unique()))
+    for kf in KEY_FILES:
+        kf_df = pd.read_csv(csv_dir + kf, index_col=0)
+        key_dfs[re.sub('(_statis_res.csv)$', '', kf)] = kf_df
+        print(kf, ' file num: ', len(kf_df['file'].unique()))
+    for sf in SPEED_FILES:
+        sf_df = pd.read_csv(csv_dir + sf, index_col=0)
+        speed_dfs[re.sub('(_statis_speed_res.csv)$', '', sf)] = sf_df
+        print(sf, ' file num: ', len(sf_df['file'].unique()))
+    for bf in BOX_FILES:
+        bf_df = pd.read_csv(csv_dir + bf, index_col=0)
+        box_dfs[re.sub('(statis_res.csv)$', 'box', bf)] = bf_df
+        print(bf, ' file num: ', len(bf_df['file'].unique()))
 
     # split column 'comb' into 'idx1' and 'idx2'
     iou_p_df = []
@@ -40,9 +43,13 @@ def read_from_csv(csv_dir, label_file=True):
 
     # merge all dfs
     common_cols = ['idx', 'file']
+    # the file numbers in iou data can be dramatically less than others
+    # thus using the 'outer' merge is important
+    # leaving some NaN values though
     merged = pd.merge(box_dfs['box'][common_cols + ['var_x', 'var_y']],
                       iou_p_df,
-                      on=common_cols)
+                      on=common_cols, 
+                      how='outer')
     for k, v in key_dfs.items():
         merged = pd.merge(merged, v[common_cols + ['var_x', 'var_y']],
                           on=common_cols, suffixes=['', '_' + k])
@@ -162,10 +169,10 @@ def fit_xgb_vid(feature_df):
     print("accuracy_score:" + str(acc))
 
 
-key_names = ['left_leg', 'left_arm', 'right_leg', 'right_arm']
-key_files =  [fname + '_statis_res.csv' for fname in key_names]
-speed_files = [fname + '_statis_speed_res.csv' for fname in key_names]
-box_files = ['statis_res.csv', 'iou_statis_res.csv']
+KEY_NAMES = ['left_leg', 'left_arm', 'right_leg', 'right_arm']
+KEY_FILES =  [fname + '_statis_res.csv' for fname in KEY_NAMES]
+SPEED_FILES = [fname + '_statis_speed_res.csv' for fname in KEY_NAMES]
+BOX_FILES = ['statis_res.csv', 'iou_statis_res.csv']
 
 # args
 SRC_DIR = "fight-sur/"
