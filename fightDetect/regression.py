@@ -200,7 +200,9 @@ def start_iou_reg(src_dir):
     print('starting regression on iou data')
     iou_statis_res = pd.DataFrame()
     for keys, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
-        print('processing file ' + fname)
+        # just to test if a file generates no results
+        res_len = iou_statis_res.shape[0]
+        # print('processing file ' + fname)
         if keys is None or boxes is None:
             continue
         # drop data with lower scores
@@ -229,6 +231,9 @@ def start_iou_reg(src_dir):
 
                     iou_diff = cal_reg_diff(iou_seg, iou_df, fname, data_type='iou')
                     iou_statis_res = pd.concat([iou_statis_res, iou_diff], axis=0)
+        # just to test if a file generates no results
+        if res_len == iou_statis_res.shape[0]:
+            print(fname, ': no iou data generated')
     # iou_statis_res.to_excel(output_dir + 'iou_statis_res.xlsx')
     iou_statis_res.to_csv(OUTPUT_DIR + 'iou_statis_res.csv')
     # iou_statis_res['cat'] = iou_statis_res['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
@@ -377,6 +382,7 @@ INTERP_METHOD = 'previous'
 IOU_TYPE = 'giou'
 NORMALIZATION = True
 # rolling_window_frame = 100
+# consider disable the score filter when the video quality is low? 
 LOWER_CONFIDENCE = True
 
 
