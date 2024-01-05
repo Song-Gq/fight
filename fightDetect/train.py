@@ -168,7 +168,7 @@ speed_files = [fname + '_statis_speed_res.csv' for fname in key_names]
 box_files = ['statis_res.csv', 'iou_statis_res.csv']
 
 # args
-SRC_DIR = "fight-sur/"
+SRC_DIR = "fight-mod/"
 
 
 if __name__ == '__main__':

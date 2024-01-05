@@ -36,6 +36,9 @@ def draw_2d_reg(reg_df, json_name, segmented=False, xy_cols=None):
     output_name = re.sub(r'^(AlphaPose_)|(\.json)$', '', json_name)
     reg_df.sort_values(by=['idx', 'image_id'], axis=0, inplace=True)
 
+    # too much columns to display
+    if reg_df['idx'].nunique() > 10:
+        return 
     # 2d line
     fig = px.line(reg_df, x='image_id', y=xy_cols[0]+'reg', facet_col='idx', facet_row=subplot_row_x)
     plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-' + xy_cols[0] + '-reg.html', auto_open=False)
@@ -362,7 +365,7 @@ def start_key_reg(src_dir, norm=False):
 
 
 # args
-SRC_DIR = "fight-sur/"
+SRC_DIR = "fight-default-settings/"
 # score_thre = 2.6
 # linear = False
 MAX_SEGMENT_NUM = 1

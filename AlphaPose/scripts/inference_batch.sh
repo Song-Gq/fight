@@ -1,8 +1,8 @@
 set -x
 
-sub_dir="fight-sur/fight"
-dir="/home/tj203/sgq/datasets/$sub_dir/*"
-out_dir="/home/tj203/sgq/datasets/output/alphapose_26_thre/$sub_dir"
+sub_dir="fight-all"
+dir="/mnt/data/sgq/datasets/$sub_dir/*"
+out_dir="/mnt/data/sgq/datasets/output/default/$sub_dir"
 for f in $dir
 do 
     if [ -f $f ]
@@ -12,9 +12,9 @@ do
             --checkpoint "./pretrained_models/halpe26_fast_res50_256x192.pth" \
             --detector yolox-x \
             --video $f --outdir $out_dir \
-            --pose_track --eval --flip \
+            --eval --flip \
             --detbatch 6 --posebatch 4096 \
-            --vis_fast --save_video --showbox
+            --vis_fast --save_video --showbox --pose_track
         filename=$(basename $f .mp4)
         mv $out_dir/alphapose-results.json $out_dir/$filename.json
     fi
