@@ -13,7 +13,7 @@ do
             --detector yolox-x \
             --video $f --outdir $out_dir \
             --eval --flip \
-            --detbatch 6 --posebatch 4096 \
+            --detbatch 1 --posebatch 64 --qsize 8 \
             --vis_fast --save_video --showbox --pose_track
         filename=$(basename $f .mp4)
         mv $out_dir/alphapose-results.json $out_dir/$filename.json
