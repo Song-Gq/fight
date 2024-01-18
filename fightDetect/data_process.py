@@ -35,9 +35,16 @@ def gen_box_df(json_dir):
     boxes.columns = boxes.columns.map(str)
     boxes = pd.concat([df, boxes], axis=1)
     boxes.drop(columns=boxes.columns[[2, 4]], axis=1, inplace=True)
+
+    # conver the original x, y of the top-left to of the center of the box
+    boxes['centerx'] = boxes['0'] + boxes['2']/2
+    boxes['centery'] = boxes['1'] + boxes['3']/2
+    boxes.drop(columns=['0', '1'], axis=1, inplace=True)
+    boxes.rename(columns={'centerx': '0', 'centery': '1'}, inplace=True)
     return boxes
 
 
+# here the x, y is the center of the box
 def box_area_xywh(box1, box2):
     x1min, y1min = box1[0] - box1[2]//2.0, box1[1] - box1[3]//2.0
     x1max, y1max = box1[0] + box1[2]//2.0, box1[1] + box1[3]//2.0

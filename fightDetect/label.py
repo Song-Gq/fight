@@ -149,7 +149,7 @@ if __name__ == '__main__':
 
     # draw_score(SRC_DIR, cat_col='dataset')
 
-    # labels = vid_statis(SRC_DIR)
+    labels = vid_statis(SRC_DIR)
     # labels.to_excel(OUTPUT_DIR + 'labels.' + datetime.now().strftime(r"%Y-%m-%d.%H-%M-%S") + '.xlsx')
 
     # diff_out = 'fightDetect/fig/diff/'
@@ -158,6 +158,5 @@ if __name__ == '__main__':
 
     # get_id_statis(SRC_DIR)
     
-    vid_size = get_vid_size("/home/song/dataset/private/vid/")
-    print()
+    # vid_size = get_vid_size("/home/song/dataset/private/vid/")
 
