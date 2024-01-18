@@ -113,20 +113,22 @@ def get_id_statis(src_dir):
 
 
 def get_vid_size(src_dir):
-    res_df = pd.DataFrame({'file', 'height', 'width', 'ratio'})
+    res = []
+    # res_df = pd.DataFrame({'file', 'height', 'width', 'ratio'})
     vid_dir = os.fsencode(src_dir)
     for f in os.listdir(vid_dir):
         fname = os.fsdecode(f)
         if fname.endswith(".mp4"): 
-            cap = cv2.VideoCapture(fname)
+            cap = cv2.VideoCapture(src_dir + '/' + fname)
             ret, frame = cap.read()
             fname_short = re.sub(r'^(AlphaPose_)|(\.json)$', '', fname)
             if ret:
                 h, w, _ = frame.shape
-                res_df = res_df.append([fname_short, h, w, w/h])
+                res.append({'file': fname_short, 'height': h, 'width': w, 'ratio': w/h})
             else:
-                res_df = res_df.append([fname_short, 0, 0, 0])
-    return res_df
+                res.append({'file': fname_short, 'height': 0, 'width': 0, 'ratio': 0})
+                print(fname_short + ": failed to read!")
+    return pd.DataFrame(res)
 
 
 # args
