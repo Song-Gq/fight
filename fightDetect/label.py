@@ -7,6 +7,7 @@ import plotly.express as px
 import plotly
 from huang_thresholding import HuangThresholding
 import numpy as np
+import cv2
 
 
 def vid_statis(src_dir):
@@ -86,10 +87,52 @@ def get_score_thre(src_dir):
     return huang_thresholding.find_threshold()
 
 
+def get_id_statis(src_dir):
+    res_df = pd.DataFrame()
+    for _, boxes, fname in dp.iter_files('fightDetect/data/' + src_dir):
+        boxes['file'] = re.sub(r'^(AlphaPose_)|(\.json)$', '', fname)
+        res_df = pd.concat([res_df, boxes[['idx', 'file', 'image_id']]])
+    
+    res_df['idx_file'] = res_df['idx'].astype(str) + res_df['file']
+    print('id count: ', len(list(res_df['idx_file'].unique())))
+
+    # read label csv
+    label_df = pd.read_csv('fightDetect/csv/' + src_dir + 'labels.csv')
+    label_df = label_df.loc[:, ~label_df.columns.str.contains("^Unnamed")]
+
+    # delete data of quality 3
+    low_quality = label_df[label_df['quality'] == 3]
+    low_files = low_quality['file'].unique()
+
+    res_df = res_df[~res_df['file'].isin(low_files)]
+    print('filtered id count: ', len(list(res_df['idx_file'].unique())))
+
+    res_df['frame_file'] = res_df['image_id'].astype(str) + res_df['file']
+    print('filtered frame count: ', len(list(res_df['frame_file'].unique())))
+    print('filtered id frame count: ', res_df.shape[0])
+
+
+def get_vid_size(src_dir):
+    res_df = pd.DataFrame({'file', 'height', 'width', 'ratio'})
+    vid_dir = os.fsencode(src_dir)
+    for f in os.listdir(vid_dir):
+        fname = os.fsdecode(f)
+        if fname.endswith(".mp4"): 
+            cap = cv2.VideoCapture(fname)
+            ret, frame = cap.read()
+            fname_short = re.sub(r'^(AlphaPose_)|(\.json)$', '', fname)
+            if ret:
+                h, w, _ = frame.shape
+                res_df = res_df.append([fname_short, h, w, w/h])
+            else:
+                res_df = res_df.append([fname_short, 0, 0, 0])
+    return res_df
+
+
 # args
 SRC_DIR = "test-plus/"
 # score_thre = 2.6
-VALID_MIN_FRAME = 5
+VALID_MIN_FRAME = 1
 LOWER_CONFIDENCE = False
 
 
@@ -104,7 +147,7 @@ if __name__ == '__main__':
 
     # get_score_thre()
 
-    draw_score(SRC_DIR, cat_col='dataset')
+    # draw_score(SRC_DIR, cat_col='dataset')
 
     # labels = vid_statis(SRC_DIR)
     # labels.to_excel(OUTPUT_DIR + 'labels.' + datetime.now().strftime(r"%Y-%m-%d.%H-%M-%S") + '.xlsx')
@@ -112,4 +155,9 @@ if __name__ == '__main__':
     # diff_out = 'fightDetect/fig/diff/'
     # os.makedirs(diff_out, exist_ok=True)
     # draw_diff("fight-sur/", "test-plus/", diff_out)
+
+    # get_id_statis(SRC_DIR)
+    
+    vid_size = get_vid_size("/home/song/dataset/private/vid/")
+    print()
 
