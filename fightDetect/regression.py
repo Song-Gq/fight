@@ -370,20 +370,20 @@ def start_key_reg(src_dir, norm=False):
 
 
 # args
-SRC_DIR = "fight-default-settings/"
+SRC_DIR = "test-single/"
 # score_thre = 2.6
 # linear = False
 MAX_SEGMENT_NUM = 1
 SEGMENT_REG_DEG = 2
-VALID_MIN_FRAME = 5
+VALID_MIN_FRAME = 30
 # for x, y location segmentation and regression
 # and for calculating iou
 INTERP_METHOD = 'previous'
 IOU_TYPE = 'giou'
-NORMALIZATION = True
+NORMALIZATION = False
 # rolling_window_frame = 100
 # consider disable the score filter when the video quality is low? 
-LOWER_CONFIDENCE = True
+LOWER_CONFIDENCE = False
 
 
 OUTPUT_SUFFIX = '-seg_num=' + str(MAX_SEGMENT_NUM) + \
@@ -399,5 +399,5 @@ if __name__ == '__main__':
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     start_location_reg(SRC_DIR, norm=NORMALIZATION)
-    start_iou_reg(SRC_DIR)
-    start_key_reg(SRC_DIR, norm=NORMALIZATION)
+    # start_iou_reg(SRC_DIR)
+    # start_key_reg(SRC_DIR, norm=NORMALIZATION)
