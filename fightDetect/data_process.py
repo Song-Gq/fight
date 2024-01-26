@@ -36,7 +36,7 @@ def gen_box_df(json_dir):
     boxes = pd.concat([df, boxes], axis=1)
     boxes.drop(columns=boxes.columns[[2, 4]], axis=1, inplace=True)
 
-    # conver the original x, y of the top-left to of the center of the box
+    # convert the original x, y of the top-left to of the center of the box
     boxes['centerx'] = boxes['0'] + boxes['2']/2
     boxes['centery'] = boxes['1'] + boxes['3']/2
     boxes.drop(columns=['0', '1'], axis=1, inplace=True)
@@ -548,8 +548,51 @@ def xy_normalize(box_df, key_df):
     #     p_metric = p_df['body_metric'].mean()
     #     box_key.loc[box_key['idx'] == p, 'p_metric'] = p_metric
 
-    for box_col in range(0, 4):
-        box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['p_metric']
+    # just to test and compare
+    b_TEST = False
+    EACH_FRAME = True
+    MIN_P_LEN = 30
+    WINDOW_SIZE = 1
+    INTERP_TYPE = 'previous'
+
+    if b_TEST:
+        if EACH_FRAME:
+            # just to test and compare
+            # calculate mean with rolling window
+            # no winodw
+            if WINDOW_SIZE == 1:
+                for box_col in range(0, 4):
+                    box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['body_metric']
+
+            else:
+                # interpolate first
+                body_interp = pd.DataFrame()
+                video_len = box_key['image_id'].max()
+                p_ids = box_key['idx'].unique()
+                for p in p_ids:
+                    p_df = box_key[box_key['idx'] == p]
+                    if p_df.shape[0] > MIN_P_LEN:
+                        p_interp = do_interp(p_df, 'image_id', 'body_metric', video_len, interp_kind=INTERP_TYPE, fill0=False)
+                        p_interp['idx'] = p
+                        body_interp = pd.concat([body_interp, p_interp])
+
+                body_interp['body_metric_roll'] = body_interp['body_metric'].rolling(WINDOW_SIZE, center=True, min_periods=2).mean()
+                box_key = pd.merge(box_key, body_interp[['image_id', 'idx', 'body_metric_roll']], on=['image_id', 'idx'], how='inner')
+
+                for box_col in range(0, 4):
+                    box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['body_metric_roll']
+
+        else:
+            # just to test and compare
+            # use mean metric of a whole video
+            vid_metric = box_key['body_metric'].mean()
+            for box_col in range(0, 4):
+                box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / vid_metric
+
+    else:
+        # use mean metric of a detected person
+        for box_col in range(0, 4):
+            box_key[str(box_col) + 'norm'] = box_key[str(box_col)] / box_key['p_metric']
     
     return box_key
 
