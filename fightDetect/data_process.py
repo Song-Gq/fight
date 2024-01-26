@@ -97,7 +97,7 @@ def cal_iou(box_df, id1, id2, kind='giou'):
                 axis=1)
         # using iou
         else:
-            p1xp2['iou'] = p1xp2.apply(lambda x: box_giou(
+            p1xp2['iou'] = p1xp2.apply(lambda x: box_iou(
                 [x['0_x'], x['1_x'], x['2_x'], x['3_x']], 
                 [x['0_y'], x['1_y'], x['2_y'], x['3_y']]), 
                 axis=1)

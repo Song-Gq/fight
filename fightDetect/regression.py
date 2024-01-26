@@ -388,7 +388,7 @@ VALID_MIN_FRAME = 30
 # and for calculating iou
 INTERP_METHOD = 'previous'
 IOU_TYPE = 'giou'
-NORMALIZATION = False
+NORMALIZATION = True
 # rolling_window_frame = 100
 # consider disable the score filter when the video quality is low? 
 LOWER_CONFIDENCE = False
@@ -406,6 +406,6 @@ OUTPUT_DIR = 'fightDetect/fig/' + SRC_DIR +  \
 if __name__ == '__main__':
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    start_location_reg(SRC_DIR, norm=NORMALIZATION)
-    # start_iou_reg(SRC_DIR)
+    # start_location_reg(SRC_DIR, norm=NORMALIZATION)
+    start_iou_reg(SRC_DIR)
     # start_key_reg(SRC_DIR, norm=NORMALIZATION)
