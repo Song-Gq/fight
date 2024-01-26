@@ -19,10 +19,18 @@ def draw_3d_reg(reg_df, json_name, segmented=False, xy_cols=None):
     output_name = re.sub(r'^(AlphaPose_)|(\.json)$', '', json_name)
     output_name = output_name + '-' + xy_cols[0][0: xy_cols[0].rfind('x') - 1] +'-xy'
     # 3d scatter
-    fig = px.scatter_3d(reg_df, x=xy_cols[0]+'reg', y=xy_cols[1]+'reg', z='image_id', symbol=symb_col, color=color_col)
+    df_to_draw = reg_df.copy()
+    # convert int 'idx' to str
+    df_to_draw['idx'] = df_to_draw['idx'].astype(str)
+    fig = px.scatter_3d(df_to_draw, x=xy_cols[0]+'reg', y=xy_cols[1]+'reg', z='image_id', symbol=symb_col, color=color_col,
+                        labels={xy_cols[0]+'reg': 'x轴', xy_cols[1]+'reg': 'y轴', 'image_id': '帧'})
+    fig.update_traces(marker_size=3)
+    fig.update_layout(font=dict(size=18))
     plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-reg.html', auto_open=False)
-
-    fig = px.scatter_3d(reg_df, x=xy_cols[0], y=xy_cols[1], z='image_id', symbol=symb_col, color=color_col)
+    fig = px.scatter_3d(df_to_draw, x=xy_cols[0], y=xy_cols[1], z='image_id', symbol=symb_col, color=color_col,
+                        labels={xy_cols[0]: 'x轴', xy_cols[1]: 'y轴', 'image_id': '帧'})
+    fig.update_traces(marker_size=3)
+    fig.update_layout(font=dict(size=18))
     plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '.html', auto_open=False)
 
 
@@ -370,7 +378,7 @@ def start_key_reg(src_dir, norm=False):
 
 
 # args
-SRC_DIR = "fight-default-settings/"
+SRC_DIR = "test-single/"
 # score_thre = 2.6
 # linear = False
 MAX_SEGMENT_NUM = 1
@@ -383,7 +391,7 @@ IOU_TYPE = 'giou'
 NORMALIZATION = True
 # rolling_window_frame = 100
 # consider disable the score filter when the video quality is low? 
-LOWER_CONFIDENCE = True
+LOWER_CONFIDENCE = False
 
 
 OUTPUT_SUFFIX = '-seg_num=' + str(MAX_SEGMENT_NUM) + \
@@ -399,5 +407,5 @@ if __name__ == '__main__':
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     start_location_reg(SRC_DIR, norm=NORMALIZATION)
-    start_iou_reg(SRC_DIR)
-    start_key_reg(SRC_DIR, norm=NORMALIZATION)
+    # start_iou_reg(SRC_DIR)
+    # start_key_reg(SRC_DIR, norm=NORMALIZATION)
