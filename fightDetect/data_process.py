@@ -160,13 +160,30 @@ def do_interp(raw_df, frame_col, val_col, total_len, interp_kind='linear', fill0
     if frame.shape[0] > min_p_len:
         frame_len = frame_max - frame_min + 1
         x = np.linspace(frame_min, frame_max, num=frame_len)
-        # interpolate values that are missing
-        f1 = interp1d(frame, value, kind=interp_kind)
-        y = f1(x)
+        # fill with Nan
+        if interp_kind == 'na':
+            interp_res = pd.DataFrame()
+            interp_res['image_id'] = frame
+            interp_res[val_col] = value
+            df_fill = pd.DataFrame()
+            df_fill['image_id'] = np.linspace(0, total_len, total_len + 1)
+            df_fill = pd.merge(df_fill, interp_res, on='image_id', how='outer')
+            return df_fill
+            # exist_ids = frame.to_list()
+            # all_ids = list(x)
+            # miss_ids = [i for i in all_ids if i not in exist_ids]
+            # interp_res = pd.DataFrame()
+            # interp_res['image_id'] = miss_ids
+            # interp_res = pd.concat([raw_df[[frame_col, val_col]], interp_res])
+            # interp_res.sort_values(by='image_id', inplace=True)
 
-        interp_res = pd.DataFrame()
-        interp_res['image_id'] = x
-        interp_res[val_col] = y
+        else:
+            # interpolate values that are missing
+            f1 = interp1d(frame, value, kind=interp_kind)
+            y = f1(x)
+            interp_res = pd.DataFrame()
+            interp_res['image_id'] = x
+            interp_res[val_col] = y
 
         # fill zeroes in the front and end
         if fill0:

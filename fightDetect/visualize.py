@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 
 
-def draw_fig(src_dir, key_df, json_name):
+def draw_fig(key_df, json_name):
     # 9. left hand: 27-x, 28-y, 29-confidence
     fig = px.scatter_3d(key_df, x='27', y='28', z='image_id', color='29', symbol='idx')
     fig.update_layout(font=dict(size=18))
@@ -31,7 +31,7 @@ def draw_fig(src_dir, key_df, json_name):
     plotly.offline.plot(fig, filename=OUTPUT_DIR + json_name + '-left-ankle-speed.html', auto_open=False)
 
 
-def draw_iou(src_dir, merged_df, json_name):
+def draw_iou(merged_df, json_name):
     fig = px.line(merged_df, x='image_id', y='iou', color='comb', markers=False,
                   labels={'image_id': '帧', 'iou': 'GIoU', 'comb': '行人A+B'})
     fig.update_layout(font=dict(size=18))
@@ -39,20 +39,20 @@ def draw_iou(src_dir, merged_df, json_name):
     # fig.show()
 
 
-def draw_fft(src_dir, merged_df, json_name):
+def draw_fft(merged_df, json_name):
     fig = px.line(merged_df, x='image_id', y='y', color='comb', markers=False)
     fig.update_layout(font=dict(size=18))
     plotly.offline.plot(fig, filename=OUTPUT_DIR + json_name + '-fft.html', auto_open=False)
 
 
-def draw_xy(src_dir, box_df, json_name):
+def draw_xy(box_df, json_name):
     # box ouput format: x, y, w, h
     fig = px.scatter_3d(box_df, x='0', y='1', z='image_id', color='score', symbol='idx')
     fig.update_layout(font=dict(size=18))
     plotly.offline.plot(fig, filename=OUTPUT_DIR + json_name + '-xy.html', auto_open=False)
 
 
-def draw_xy_fft(src_dir, fft_df, json_name):
+def draw_xy_fft(fft_df, json_name):
     x_fft = fft_df[['image_id', 'x_fft', 'idx']].copy(deep=True)
     x_fft.columns = ['image_id', 'fft', 'idx']
     x_fft['axis'] = 'x'
@@ -103,14 +103,14 @@ if __name__ == '__main__':
             iou_df, fft_df = dp.comb_iou_fft(high_score, iou_type=IOU_TYPE, 
                                              interp_type=INTERP_METHOD)
             if iou_df.shape[0] > 0:
-                draw_iou(SRC_DIR, iou_df, fname)
-                draw_fft(SRC_DIR, fft_df, fname)
+                draw_iou(iou_df, fname)
+                draw_fft(fft_df, fname)
                 
                 # draw x, y trajectoreis of box centers
-                draw_xy(SRC_DIR, high_score, fname)
+                draw_xy(high_score, fname)
 
                 xy_fft_df = dp.do_xy_fft(high_score, interp_type=INTERP_METHOD)
-                draw_xy_fft(SRC_DIR, xy_fft_df, fname)
+                draw_xy_fft(xy_fft_df, fname)
             
             print()
 

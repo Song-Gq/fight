@@ -66,7 +66,7 @@ def draw_statis(res_df, output_name):
     # df_draw['cat'] = df_draw['file'].str.replace('[a-zA-Z0-9_.]+', '', regex=True)
     df_draw['cat'] = df_draw['file'].str.replace(r'[0-9]+', '', regex=True)
 
-    fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='box', marginal_y='box', hover_name='file')
+    fig = px.scatter(df_draw, x='var_x', y='var_y', color='cat', marginal_x='histogram', marginal_y='histogram', hover_name='file')
     plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-statis-scatter.html', auto_open=False)
     
     fig = px.histogram(df_draw, x='var_x', color='cat', marginal='rug', hover_name='file')
@@ -74,6 +74,32 @@ def draw_statis(res_df, output_name):
 
     fig = px.histogram(df_draw, x='var_y', color='cat', marginal='rug', hover_name='file')
     plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name + '-statis-y-hist.html', auto_open=False)
+
+
+def draw_scalar(scalar_df, file_name, keypoint_name, col_name):
+    output_name = re.sub(r'^(AlphaPose_)|(\.json)$', '', file_name)
+    if col_name == 'scalar':
+        suf = 'speed'
+    else:
+        suf = 'speed_reg'
+    output_name = output_name + '-' + keypoint_name + '-' + suf + '.html'
+    
+    # do interpolation
+    scalar_df['image_id'] = scalar_df['image_id'].astype(int)
+    video_len = scalar_df['image_id'].max()
+    p_ids = scalar_df['idx'].unique()
+    scalar_filled = pd.DataFrame()
+    for p in p_ids:
+        p_df = scalar_df[scalar_df['idx'] == p]
+        p_df = dp.do_interp(p_df, 'image_id', col_name, video_len, 'na', 
+                                fill0=True, min_p_len=VALID_MIN_FRAME)
+        p_df['idx'] = p
+        scalar_filled = pd.concat([scalar_filled, p_df])
+    fig = px.line(scalar_filled, x='image_id', y=col_name, color='idx', markers=False,
+                  labels={'image_id': '帧', col_name: '速度', 'idx': '行人'})
+    fig.update_traces(connectgaps=False)
+    fig.update_layout(font=dict(size=18))
+    plotly.offline.plot(fig, filename=OUTPUT_DIR + output_name, auto_open=False)
 
 
 def abs_mean(x):
@@ -193,8 +219,8 @@ def start_location_reg(src_dir, norm=False):
                 reg_res = valid_merge(xy_seg, high_score, inner=True)
                 reg_res = rename_seg(reg_res)
 
-                draw_3d_reg(reg_res, fname, segmented=True)
-                draw_2d_reg(reg_res, fname, segmented=True)
+                # draw_3d_reg(reg_res, fname, segmented=True)
+                # draw_2d_reg(reg_res, fname, segmented=True)
 
                 xy_diff = cal_reg_diff(xy_seg, high_score, fname)
                 statis_res = pd.concat([statis_res, xy_diff], axis=0)
@@ -265,10 +291,10 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
         feature_xy = valid_merge(feature_xy, temp_df, inner=True, id_col='idx')
         feature_xy = rename_seg(feature_xy)
         
-        draw_3d_reg(feature_xy, json_name, segmented=True, 
-                    xy_cols=[feature_name + '_x', feature_name + '_y'])
-        draw_2d_reg(feature_xy, json_name, segmented=True, 
-                    xy_cols=[feature_name + '_x', feature_name + '_y'])
+        # draw_3d_reg(feature_xy, json_name, segmented=True, 
+        #             xy_cols=[feature_name + '_x', feature_name + '_y'])
+        # draw_2d_reg(feature_xy, json_name, segmented=True, 
+        #             xy_cols=[feature_name + '_x', feature_name + '_y'])
         
         feature_diff = cal_reg_diff(feature_xy, temp_df[['image_id', 'idx']], json_name, 
                     xy_cols=[feature_name + '_x', feature_name + '_y'])
@@ -288,6 +314,8 @@ def xy_feature_reg(raw_df, key_nums, feature_name, res_df, json_name):
         # empty dataframe
         if speed_seg.shape[0] == 0:
             return res_df
+        # draw_scalar(vector_speed, json_name, feature_name, 'scalar')
+        # draw_scalar(speed_seg, json_name, feature_name, 'scalarreg')
         speed_diff = cal_reg_diff(speed_seg, vector_speed[['image_id', 'idx', 'scalar']], json_name, data_type='scalar')
 
         return [pd.concat([res_df[0], feature_diff], axis=0),
@@ -378,10 +406,10 @@ def start_key_reg(src_dir, norm=False):
 
 
 # args
-SRC_DIR = "test-single/"
+SRC_DIR = "test-plus/"
 # score_thre = 2.6
 # linear = False
-MAX_SEGMENT_NUM = 1
+MAX_SEGMENT_NUM = 5
 SEGMENT_REG_DEG = 2
 VALID_MIN_FRAME = 30
 # for x, y location segmentation and regression
@@ -406,6 +434,6 @@ OUTPUT_DIR = 'fightDetect/fig/' + SRC_DIR +  \
 if __name__ == '__main__':
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # start_location_reg(SRC_DIR, norm=NORMALIZATION)
+    start_location_reg(SRC_DIR, norm=NORMALIZATION)
     start_iou_reg(SRC_DIR)
-    # start_key_reg(SRC_DIR, norm=NORMALIZATION)
+    start_key_reg(SRC_DIR, norm=NORMALIZATION)
